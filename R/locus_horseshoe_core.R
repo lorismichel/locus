@@ -27,11 +27,11 @@ locus_horseshoe_core_ <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu
 
       # % # update of sigma^{-2}
 
-      c_vb <- (p*d+1)/2
-      d_vb <- update_d_vb_(a_inv_vb, m2_beta, b_vb)
+      eta_vb <- (p*d+1)/2
+      kappa_vb <- update_kappa_vb_(a_inv_vb, m2_beta, b_vb)
 
-      sig2_inv_vb <- c_vb / d_vb
-      a_inv_vb <- 1 / (2*(sig2_inv_vb + A^{-2}))
+      sig2_inv_vb <- eta_vb / kappa_vb
+      a_inv_vb <- 1 / (sig2_inv_vb + A^{-2})
       # % #
 
       # % # # update of tau_{t}
@@ -140,8 +140,8 @@ locus_horseshoe_core_ <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu
      # sum_gam <- sum(rowsums_gam)
 
     #  lb_new <- lower_bound_(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
-    #                         gam_vb, eta, kappa, lambda, nu, a, b, a_vb, b_vb,
-    #                         m1_beta, m2_beta, sum_gam)
+    #                         eta, kappa, lambda, nu, b_vb,
+    #                         m2_beta, G_vb)
     lb_new <- 0
 
       if (verbose & (it == 1 | it %% 5 == 0))
@@ -202,7 +202,7 @@ locus_horseshoe_core_ <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu
 #
 #}
 
-update_d_vb_ <- function(a_inv, m2_beta, b_vb) {
+update_kappa_vb_ <- function(a_inv, m2_beta, b_vb) {
 
   as.numeric(a_inv + (1/2)*sum(m2_beta * b_vb))
 
@@ -243,7 +243,8 @@ update_nu_vb_ <- function(Y_mat, X_mat, d, n, p, m1_beta,
     if(d == 1) mix_x_sum <- t(mix_x_sum)
 
 
-    nu_vb <- nu_vb + (1/2)* rowSums(mix_x_sum)
+    nu_vb <- nu_vb + rowSums(mix_x_sum)
+
   }
 
   nu_vb
@@ -253,45 +254,33 @@ update_nu_vb_ <- function(Y_mat, X_mat, d, n, p, m1_beta,
 
 
 # this function should be changed adequately
-lower_bound_ <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb, gam_vb,
-                         eta, kappa, lambda, nu, a, b, a_vb, b_vb, m1_beta,
-                         m2_beta, sum_gam) {
+lower_bound_ <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
+                         eta, kappa, lambda, nu,  b_vb,
+                         m2_beta, G_vb) {
 
-  eta_vb <- update_eta_vb_(gam_vb, eta, n)
-  kappa_vb <- update_kappa_vb_(Y, X, d, n, p, sig2_inv_vb, m1_beta, m2_beta, kappa)
+  # update for tau
+  lambda_vb <- lambda + (n/2)
+  nu_vb <- update_nu_vb_(Y, X, d, n, p, mu_beta_vb, m2_beta, nu)
 
-  lambda_vb <- update_lambda_vb_(sum_gam, lambda)
-  nu_vb <- update_nu_vb_(tau_vb, m2_beta, nu)
+  # updates for sigma
+  eta_vb <- (p*d+1)/2
+  kappa_vb <- update_kappa_vb_(a_inv_vb, m2_beta, b_vb)
 
-  log_tau_vb <- digamma(eta_vb) - log(kappa_vb)
-  log_sig2_inv_vb <- digamma(lambda_vb) - log(nu_vb)
-  log_om_vb <- digamma(a_vb) - digamma(a_vb + b_vb)
-  log_1_min_om_vb <- digamma(b_vb) - digamma(a_vb + b_vb)
+  # value for a
+  a_inv_vb <- 1 / (sig2_inv_vb + A^{-2})
 
-  A <- sum(-n / 2 * log(2 * pi) + n / 2 * log_tau_vb -
-             tau_vb * (kappa_vb - colSums(m2_beta) * sig2_inv_vb / 2 - kappa))
+  # log values
+  log_tau_vb <- digamma(lambda_vb) - log(nu_vb)
+  log_sig2_inv_vb <- digamma(eta_vb) - log(kappa_vb)
 
-  eps <- .Machine$double.eps # to control the argument of the log when gamma is very small
-  B <- sum(log_sig2_inv_vb * gam_vb / 2 +
-             sweep(gam_vb, 2, log_tau_vb, `*`) / 2 -
-             sweep(m2_beta, 2, tau_vb, `*`) * sig2_inv_vb / 2 +
-             sweep(gam_vb, 1, log_om_vb, `*`) +
-             sweep(1 - gam_vb, 1, log_1_min_om_vb, `*`) +
-             1 / 2 * sweep(gam_vb, 2, log(sig2_beta_vb) + 1, `*`) -
-             gam_vb * log(gam_vb + eps) - (1 - gam_vb) * log(1 - gam_vb + eps))
+  l <- (n*d/2)* log(2*pi) + p*d/2 + (n/2)*sum(log_tau_vb) + sum(log(sig2_beta_vb)) -
+       crossprod(tau_vb,(nu_vb - nu)) + (p*d/2)*log_sig2_inv_vb - (1/2)* sum(b_vb * sig2_inv_vb * m2_beta) +
+    sum((lambda_vb - lambda) * log_tau_vb + lambda_vb * (1- (nu/nu_vb)) - log(gamma(lambda)) + log(gamma(lambda_vb)) +
+          lambda*log(nu) - lambda_vb*log(nu_vb)) +
+    ((1/2)-eta_vb)*log_sig2_inv_vb - a_vb*(sig2_inv_vb + A^{-2}) -2*log(gamma(1/2)) + (1/2)*log(A^{-2}) + eta_vb +
+    log(gamma(eta_vb)) - eta_vb*log(kappa_vb) - (p*d*log(2*pi)) + sum(log(expint_E1(G_vb))) + sum(G_vb*exp(G_vb)*expint_E1(G_vb))
 
-  G <- sum((eta - eta_vb) * log_tau_vb -
-            (kappa - kappa_vb) * tau_vb + eta * log(kappa) -
-            eta_vb * log(kappa_vb) - lgamma(eta) + lgamma(eta_vb))
-
-  H <- (lambda - lambda_vb) * log_sig2_inv_vb - (nu - nu_vb) * sig2_inv_vb +
-    lambda * log(nu) - lambda_vb * log(nu_vb) - lgamma(lambda) +
-    lgamma(lambda_vb)
-
-  J <- sum((a - a_vb) * log_om_vb + (b - b_vb) * log_1_min_om_vb - lbeta(a, b) +
-             lbeta(a_vb, b_vb))
-
-  A + B + G + H + J
+  return(l)
 
 }
 

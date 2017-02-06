@@ -199,9 +199,13 @@ locus <- function(Y, X, p0_av, Z = NULL, list_hyper = NULL, list_init = NULL,
   if (is.null(list_blocks)) {
 
     if (is.null(q))
-      vb <- locus_core_(Y, X, d, n, p, list_hyper, list_init$gam_vb,
-                        list_init$mu_beta_vb, list_init$sig2_beta_vb,
-                        list_init$tau_vb, tol, maxit, batch, verbose)
+     # vb <- locus_core_(Y, X, d, n, p, list_hyper, list_init$gam_vb,
+     #                  list_init$mu_beta_vb, list_init$sig2_beta_vb,
+     #                   list_init$tau_vb, tol, maxit, batch, verbose)
+
+      vb <- locus_horseshoe_core_(Y, X, d, n, p, list_hyper, list_init$b_vb, list_init$sigma2_bv, list_init$mu_beta_vb,
+                                     list_init$sig2_beta_vb, list_init$tau_vb, tol, maxit, batch, verbose)
+
     else
       vb <- locus_z_core_(Y, X, Z, d, n, p, q, list_hyper, list_init$gam_vb,
                           list_init$mu_beta_vb, list_init$sig2_beta_vb,
@@ -240,6 +244,8 @@ locus <- function(Y, X, p0_av, Z = NULL, list_hyper = NULL, list_init = NULL,
                              list_init_bl$gam_vb, list_init_bl$mu_beta_vb,
                              list_init_bl$sig2_beta_vb, list_init_bl$tau_vb,
                              tol, maxit, batch, verbose)
+
+
       else
         vb_bl <- locus_z_core_(Y, X_bl, Z, d, n, vec_p_bl[k], q, list_hyper_bl,
                                list_init_bl$gam_vb, list_init_bl$mu_beta_vb,
