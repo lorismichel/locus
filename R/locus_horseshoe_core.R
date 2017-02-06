@@ -82,8 +82,7 @@ locus_horseshoe_core_ <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu
           require(expint)
           b_vb[j,] <- (1 / (G_vb[j,] * exp(G_vb[j,]) * expint_E1(G_vb[j,]))) -1
         }
-        print(sig2_inv_vb)
-        print(a_inv_vb)
+
 
 
 
@@ -243,7 +242,8 @@ update_nu_vb_ <- function(Y_mat, X_mat, d, n, p, m1_beta,
 
     if(d == 1) mix_x_sum <- t(mix_x_sum)
 
-    nu_vb <- nu_vb + (1/2)*rowSums(mix_x_sum)
+
+    nu_vb <- nu_vb + (1/2)* rowSums(mix_x_sum)
   }
 
   nu_vb
