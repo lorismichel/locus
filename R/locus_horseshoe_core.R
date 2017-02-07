@@ -281,7 +281,7 @@ lower_bound_ <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
           lambda*log(nu) - lambda_vb*log(nu_vb)) +
     ((1/2)-eta_vb)*log_sig2_inv_vb - a_inv_vb*(sig2_inv_vb + A^{-2}) -2*lgamma(1/2) + (1/2)*log(A^{-2}) +
     1 - log(sig2_inv_vb + A^{-2}) + eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) - (p*d*log(2*pi)) +
-    sum(log(expint_E1(G_vb))) + sum(G_vb*exp(G_vb)*expint_E1(G_vb))
+    sum(log(expint_E1(G_vb))) + p*d - sum(G_vb*exp(G_vb)*expint_E1(G_vb))
 
   return(l)
 
