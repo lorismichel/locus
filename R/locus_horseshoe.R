@@ -9,12 +9,6 @@
 #'   number of observations and d is the number of response variables.
 #' @param X Input matrix of dimension n x p, where p is the number of candidate
 #'   predictors. \code{X} cannot contain NAs. No intercept must be supplied.
-#' @param p0_av Prior average number of predictors expected to be included in
-#'   the model. Must be \code{NULL} if \code{list_init} and
-#'   \code{list_hyper} are both non-\code{NULL} or if \code{list_cv} is
-#'   non-\code{NULL}. Can also be a vector of length p with entry s
-#'   corresponding to the prior probability that candidate predictor s is
-#'   associated with at least one response.
 #' @param Z Covariate matrix of dimension n x q, where q is the number of
 #'   covariates. \code{NULL} if no covariate. Factor covariates must be supplied
 #'   after transformation to dummy coding. No intercept must be supplied.
@@ -99,7 +93,7 @@
 #'
 #' @export
 #'
-locus <- function(Y, X, p0_av, Z = NULL, list_hyper = NULL, list_init = NULL,
+locus_horseshoe <- function(Y, X, p0_av, Z = NULL, list_hyper = NULL, list_init = NULL,
                   list_cv = NULL, list_blocks = NULL, user_seed = NULL,
                   tol = 1e-4, maxit = 1000, batch = TRUE, save_hyper = FALSE,
                   save_init = FALSE, verbose = TRUE) { ##
@@ -199,11 +193,8 @@ locus <- function(Y, X, p0_av, Z = NULL, list_hyper = NULL, list_init = NULL,
   if (is.null(list_blocks)) {
 
     if (is.null(q))
-     # vb <- locus_core_(Y, X, d, n, p, list_hyper, list_init$gam_vb,
-     #                  list_init$mu_beta_vb, list_init$sig2_beta_vb,
-     #                   list_init$tau_vb, tol, maxit, batch, verbose)
 
-      vb <- locus_horseshoe_core_(Y, X, d, n, p, list_hyper, list_init$b_vb, list_init$sigma2_bv, list_init$mu_beta_vb,
+      vb <- locus_core_horseshoe(Y, X, d, n, p, list_hyper, list_init$b_vb, list_init$sigma2_bv, list_init$mu_beta_vb,
                                      list_init$sig2_beta_vb, list_init$tau_vb, tol, maxit, batch, verbose)
 
     else
@@ -240,11 +231,11 @@ locus <- function(Y, X, p0_av, Z = NULL, list_hyper = NULL, list_init = NULL,
 
       if (is.null(q))
 
-        vb_bl <- locus_core_(Y, X_bl, d, n, vec_p_bl[k], list_hyper_bl,
-                             list_init_bl$gam_vb, list_init_bl$mu_beta_vb,
-                             list_init_bl$sig2_beta_vb, list_init_bl$tau_vb,
-                             tol, maxit, batch, verbose)
-
+        vb_bl <- locus_core_horseshoe(Y, X_bl, d, n, vec_p_bl[k], list_hyper_bl,
+                                      list_init_bl$b_vb, list_init_bl$sigma2_bv,
+                                      list_init_bl$mu_beta_vb, list_init_bl$sig2_beta_vb,
+                                      list_init_bl$tau_vb,
+                                      tol, maxit, batch, verbose)
 
       else
         vb_bl <- locus_z_core_(Y, X_bl, Z, d, n, vec_p_bl[k], q, list_hyper_bl,
