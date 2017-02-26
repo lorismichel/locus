@@ -2,8 +2,11 @@
 #'
 #' The cross-validation procedure uses the variational lower bound as objective
 #' function and is used to select the prior average number of predictors
-#' \code{p0_av} expected to be included in the model used to set the model
-#' hyperparameters and ensure sparse predictor selections.
+#' \code{p0_av} expected to be included in the model. \code{p0_av} is used to
+#' set the model hyperparameters and ensure sparse predictor selections.
+#'
+#' This cross-validation procedure is available only for
+#' \code{link = "identity"}.
 #'
 #' @param n Number of observations.
 #' @param p Number of candidate predictors.
@@ -36,13 +39,14 @@
 #' list_Y <- generate_phenos(n = n, d = d, var_err = 0.25)
 #'
 #' dat <- generate_dependence(list_snps = list_X, list_phenos = list_Y,
-#'                            ind_d0 = sample(1:d, d0), ind_p0 = sample(1:p, p0),
-#'                            vec_prob_sh = 0.1, max_tot_pve = 0.9)
+#'                            ind_d0 = sample(1:d, d0),
+#'                            ind_p0 = sample(1:p, p0), vec_prob_sh = 0.1,
+#'                            max_tot_pve = 0.9)
 #'
 #' list_cv <- set_cv(n, p, n_folds = 3, size_p0_av_grid = 3, n_cpus = 2)
 #'
-#' vb <- locus(Y = dat$phenos, X = dat$snps, p0_av = NULL, list_cv = list_cv,
-#'             user_seed = user_seed)
+#' vb <- locus(Y = dat$phenos, X = dat$snps, p0_av = NULL, link = "identity",
+#'             list_cv = list_cv, user_seed = user_seed)
 #'
 #' @seealso \code{\link{locus}}
 #'
@@ -145,7 +149,15 @@ create_grid_ <- function(p, size_p0_av_grid) {
 }
 
 
-cross_validate_ <- function(Y, X, Z, d, n, p, q, list_cv, user_seed, verbose) {
+cross_validate_ <- function(Y, X, Z, list_cv, user_seed, verbose) {
+
+
+  d <- ncol(Y)
+  n <- nrow(Y)
+  p <- ncol(X)
+
+  if (!is.null(Z)) q <- ncol(Z)
+  else q <- NULL
 
   with(list_cv, {
 
@@ -157,9 +169,6 @@ cross_validate_ <- function(Y, X, Z, d, n, p, q, list_cv, user_seed, verbose) {
       }
 
       current <- which(folds == k)
-
-      n_test <- length(current)
-      n_tr <- n - n_test
 
       Y_tr <- Y[-current,, drop = FALSE]
       Y_test <- Y[current,, drop = FALSE] # drop = FALSE for the case where n_folds = n
@@ -180,7 +189,6 @@ cross_validate_ <- function(Y, X, Z, d, n, p, q, list_cv, user_seed, verbose) {
 
       Y_tr <- scale(Y_tr, center = TRUE, scale = FALSE)
       Y_test <- scale(Y_test, center = TRUE, scale = FALSE)
-
 
       if (!is.null(Z)) {
         Z_tr <- Z[-current,, drop = FALSE]
@@ -204,36 +212,48 @@ cross_validate_ <- function(Y, X, Z, d, n, p, q, list_cv, user_seed, verbose) {
 
         if (verbose) cat(paste("Evaluating p0_av = ", pg, "... \n", sep=""))
 
-        list_hyper_pg <- auto_set_hyper_(Y_tr, p, pg, q)
-        list_init_pg <- auto_set_init_(Y_tr, p, pg, user_seed, q)
+        list_hyper_pg <- auto_set_hyper_(Y_tr, p, pg, q, link = "identity",
+                                         ind_bin = NULL)
+        list_init_pg <- auto_set_init_(Y_tr, p, pg, q, user_seed,
+                                       link = "identity", ind_bin = NULL)
 
         if (is.null(q)) {
-          vb_tr <- locus_core_(Y_tr, X_tr, d, n_tr, p, list_hyper_pg,
+          vb_tr <- locus_core_(Y_tr, X_tr, list_hyper_pg,
                                list_init_pg$gam_vb, list_init_pg$mu_beta_vb,
                                list_init_pg$sig2_beta_vb, list_init_pg$tau_vb,
                                tol_cv, maxit_cv, batch_cv, verbose = FALSE,
                                full_output = TRUE)
 
           lb_vec[ind_pg] <- with(vb_tr, {
-            lower_bound_(Y_test, X_test, d, n_test, p, sig2_beta_vb, sig2_inv_vb,
-                         tau_vb, gam_vb, eta, kappa, lambda, nu, a, b, a_vb, b_vb,
-                         m1_beta, m2_beta, sum_gam)
+
+            mat_x_m1 <-  X_test %*% m1_beta
+
+            lower_bound_(Y_test, X_test, a, a_vb, b, b_vb, eta, gam_vb, kappa,
+                         lambda, nu, sig2_beta_vb, sig2_inv_vb, tau_vb,
+                         m1_beta, m2_beta, mat_x_m1, sum_gam)
+
           })
         } else {
-          vb_tr <- locus_z_core_(Y_tr, X_tr, Z_tr, d, n_tr, p, q, list_hyper_pg,
-                                 list_init_pg$gam_vb, list_init_pg$mu_beta_vb,
+          vb_tr <- locus_z_core_(Y_tr, X_tr, Z_tr, list_hyper_pg,
+                                 list_init_pg$gam_vb, list_init_pg$mu_alpha_vb,
+                                 list_init_pg$mu_beta_vb, list_init_pg$sig2_alpha_vb,
                                  list_init_pg$sig2_beta_vb, list_init_pg$tau_vb,
-                                 list_init_pg$mu_alpha_vb,
-                                 list_init_pg$sig2_alpha_vb, tol_cv, maxit_cv,
-                                 batch_cv, verbose = FALSE, full_output = TRUE)
+                                 tol_cv, maxit_cv, batch_cv, verbose = FALSE,
+                                 full_output = TRUE)
 
           lb_vec[ind_pg] <- with(vb_tr, {
-            lower_bound_z_(Y_test, X_test, Z_test, d, n_test, p, q, mu_alpha_vb,
-                           sig2_alpha_vb, zeta2_inv_vb, sig2_beta_vb, sig2_inv_vb,
-                           tau_vb, gam_vb, eta, kappa, lambda, nu, a, b, a_vb, b_vb,
-                           phi, phi_vb, xi, m2_alpha, m1_beta, m2_beta, sum_gam)
+
+            mat_z_mu <-  Z_test %*% mu_alpha_vb
+            mat_x_m1 <-  X_test %*% m1_beta
+
+            lower_bound_z_(Y_test, X_test, Z_test, a, a_vb, b, b_vb, eta,
+                           gam_vb, kappa, lambda, mu_alpha_vb, nu, phi, phi_vb,
+                           sig2_alpha_vb, sig2_beta_vb, sig2_inv_vb, tau_vb,
+                           xi, zeta2_inv_vb, m2_alpha, m1_beta, m2_beta,
+                           mat_x_m1, mat_z_mu, sum_gam)
           })
         }
+
 
         if (verbose) { cat(paste("Lower bound on test set, fold ", k, ", p0_av ",
                                  pg, ": ", lb_vec[ind_pg], ". \n", sep = ""))

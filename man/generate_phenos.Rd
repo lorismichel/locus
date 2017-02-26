@@ -13,8 +13,10 @@ generate_phenos(n, d, var_err, cor_type = NULL, vec_rho = NULL,
 \item{d}{Number of phenos.}
 
 \item{var_err}{Vector of length 1 or d containing the variances of the
-Gaussian distributions used to draw the phenotytpes. If of length 1, the
-value is repeated d times.}
+(latent) Gaussian distributions used to generate the phenotypes. If of
+length 1, the value is repeated d times. If binary data are targeted
+(using the probit modelling within the \code{\link{generate_dependence}}
+function), var_err is usually set to 1 (no impact on inference).}
 
 \item{cor_type}{String describing the type of dependence structure. The
 phenotypes can \code{autocorrelated}, \code{equicorrelated}. Set to
@@ -40,13 +42,20 @@ An object of class "\code{sim_phenos}".
 }
 \description{
 This function generates Gaussian phenotypes with specific block correlation
-structure.
+structure. If binary phenotypes are wanted, must be used in conjunction with
+the \code{\link{generate_dependence}} function: the present function
+simulates latent Gaussian phenotypes which will be used in
+\code{\link{generate_dependence}} to generate binary phenotypes associated
+with SNPs from a probit model.
 }
 \examples{
 user_seed <- 123; set.seed(user_seed)
-n <- 500; d <- 10000; var_err <- runif(d, min = 0.1, max = 0.4)
+n <- 500; d <- 10000
 cor_type <- "equicorrelated"; vec_rho <- runif(100, min = 0.25, max = 0.95)
-list_phenos <- generate_phenos(n, d, var_err, cor_type, vec_rho, n_cpus = 2,
+var_err <- runif(d, min = 0.1, max = 0.4)
+
+list_phenos <- generate_phenos(n, d, var_err, cor_type = cor_type,
+                               vec_rho = vec_rho, n_cpus = 2,
                                user_seed = user_seed)
 
 }
@@ -54,4 +63,3 @@ list_phenos <- generate_phenos(n, d, var_err, cor_type, vec_rho, n_cpus = 2,
 \code{\link{generate_snps}}, \code{\link{replicate_real_snps}},
   \code{\link{replicate_real_phenos}}, \code{\link{generate_dependence}}
 }
-

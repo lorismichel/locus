@@ -44,8 +44,12 @@ An object of class "\code{cv}" preparing the settings for the
 \description{
 The cross-validation procedure uses the variational lower bound as objective
 function and is used to select the prior average number of predictors
-\code{p0_av} expected to be included in the model used to set the model
-hyperparameters and ensure sparse predictor selections.
+\code{p0_av} expected to be included in the model. \code{p0_av} is used to
+set the model hyperparameters and ensure sparse predictor selections.
+}
+\details{
+This cross-validation procedure is available only for
+\code{link = "identity"}.
 }
 \examples{
 user_seed <- 123; set.seed(user_seed)
@@ -54,16 +58,16 @@ list_X <- generate_snps(n = n, p = p)
 list_Y <- generate_phenos(n = n, d = d, var_err = 0.25)
 
 dat <- generate_dependence(list_snps = list_X, list_phenos = list_Y,
-                           ind_d0 = sample(1:d, d0), ind_p0 = sample(1:p, p0),
-                           vec_prob_sh = 0.1, max_tot_pve = 0.9)
+                           ind_d0 = sample(1:d, d0),
+                           ind_p0 = sample(1:p, p0), vec_prob_sh = 0.1,
+                           max_tot_pve = 0.9)
 
 list_cv <- set_cv(n, p, n_folds = 3, size_p0_av_grid = 3, n_cpus = 2)
 
-vb <- locus(Y = dat$phenos, X = dat$snps, p0_av = NULL, list_cv = list_cv,
-            user_seed = user_seed)
+vb <- locus(Y = dat$phenos, X = dat$snps, p0_av = NULL, link = "identity",
+            list_cv = list_cv, user_seed = user_seed)
 
 }
 \seealso{
 \code{\link{locus}}
 }
-

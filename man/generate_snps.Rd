@@ -20,8 +20,8 @@ independent SNPs.}
 number of blocks of correlated SNPs. Must be smaller than p. Set to
 \code{NULL} if independent SNPs.}
 
-\item{vec_maf}{Vector of size p containing the reference minor allele
-frequencies used to draw the SNPs. If \code{NULL}, the minor allele
+\item{vec_maf}{Vector of length p containing the reference minor allele
+frequencies used to generate the SNPs. If \code{NULL}, the minor allele
 frequencies drawn uniformly at random between 0.05 and 0.5.}
 
 \item{n_cpus}{Number of CPUs used when simulating correlated SNP blocks.
@@ -51,4 +51,3 @@ list_snps <- generate_snps(n, p, cor_type, vec_rho, n_cpus = 2,
 \code{\link{replicate_real_snps}}, \code{\link{generate_phenos}},
   \code{\link{replicate_real_phenos}}, \code{\link{generate_dependence}}
 }
-

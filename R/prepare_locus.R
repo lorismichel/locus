@@ -1,4 +1,7 @@
-prepare_data_ <- function(Y, X, Z, user_seed, tol, maxit, batch, verbose) {
+prepare_data_ <- function(Y, X, Z, link, ind_bin, user_seed, tol, maxit, batch,
+                          verbose) {
+
+  stopifnot(link %in% c("identity", "logit", "probit", "mix"))
 
   check_structure_(user_seed, "vector", "numeric", 1, null_ok = TRUE)
 
@@ -11,13 +14,36 @@ prepare_data_ <- function(Y, X, Z, user_seed, tol, maxit, batch, verbose) {
   check_structure_(batch, "vector", "logical", 1)
 
   check_structure_(verbose, "vector", "logical", 1)
-#
+
   check_structure_(X, "matrix", "numeric")
-  check_structure_(Y, "matrix", "double")
 
   n <- nrow(X)
   p <- ncol(X)
-  d <- ncol(Y)
+
+  if (link == "identity") {
+
+    check_structure_(Y, "matrix", "double")
+    d <- ncol(Y)
+
+  } else if (link == "mix") {
+
+    check_structure_(Y, "matrix", "numeric")
+    d <- ncol(Y)
+
+    if(!all(as.vector(Y[, ind_bin]) == as.numeric(as.logical(Y[, ind_bin]))))
+      stop("The responses in Y correspinding to indices ind_bin must be a binary.")
+
+  } else {
+
+    check_structure_(Y, "matrix", "numeric")
+    d <- ncol(Y)
+    if(!all(as.vector(Y) == as.numeric(as.logical(Y))))
+      stop("Y must be a binary matrix for logistic/probit regression.")
+
+  }
+
+
+  ind_bin <- prepare_ind_bin_(d, ind_bin, link)
 
   if (nrow(Y) != n) stop("X and Y must have the same number of observations.")
 
@@ -53,7 +79,6 @@ prepare_data_ <- function(Y, X, Z, user_seed, tol, maxit, batch, verbose) {
 
     list_Z_cst <- rm_constant_(Z, verbose)
     Z <- list_Z_cst$mat
-    q <- ncol(Z)
     bool_cst_z <- list_Z_cst$bool_cst
     rmvd_cst_z <- list_Z_cst$rmvd_cst
 
@@ -78,7 +103,6 @@ prepare_data_ <- function(Y, X, Z, user_seed, tol, maxit, batch, verbose) {
 
   list_X_cst <- rm_constant_(X, verbose)
   X <- list_X_cst$mat
-  p <- ncol(X)
   bool_cst_x <- list_X_cst$bool_cst
   rmvd_cst_x <- list_X_cst$rmvd_cst
 
@@ -91,7 +115,19 @@ prepare_data_ <- function(Y, X, Z, user_seed, tol, maxit, batch, verbose) {
   bool_rmvd_x <- bool_cst_x
   bool_rmvd_x[!bool_cst_x] <- bool_coll_x
 
-  Y <- scale(Y, center = TRUE, scale = FALSE)
+  if (link == "identity") {
+
+    Y <- scale(Y, center = TRUE, scale = FALSE)
+
+  } else if (link == "mix") {
+
+    Y[, -ind_bin] <- scale(Y[, -ind_bin], center = TRUE, scale = FALSE)
+
+  } else if (link == "logit") {
+
+    Y <- Y - 1 / 2
+
+  }
 
   if (p < 1) stop(paste("There must be at least 1 non-constant candidate predictor ",
                         " stored in X.", sep=""))
@@ -162,15 +198,17 @@ convert_p0_av_ <- function(p0_av, p, verbose, eps = .Machine$double.eps^0.5) {
 }
 
 
-prepare_list_hyper_ <- function(list_hyper, Y, d, p, p_star, q,
+prepare_list_hyper_ <- function(list_hyper, Y, p, p_star, q, link, ind_bin,
                                 bool_rmvd_x, bool_rmvd_z,
                                 names_x, names_y, names_z, verbose) {
+
+  d <- ncol(Y)
 
   if (is.null(list_hyper)) {
 
     if (verbose) cat("list_hyper set automatically. \n")
 
-    list_hyper <- auto_set_hyper_(Y, p, p_star, q)
+    list_hyper <- auto_set_hyper_(Y, p, p_star, q, link, ind_bin)
 
   } else {
 
@@ -190,12 +228,22 @@ prepare_list_hyper_ <- function(list_hyper, Y, d, p, p_star, q,
 
 
     if (list_hyper$d_hyper != d)
-      stop(paste("The dimensions of the provided hyperparameters ",
-                 "(list_hyper) are not consistent with that of Y.", sep=""))
+      stop(paste("The dimensions (d) of the provided hyperparameters ",
+                 "(list_hyper) are not consistent with that of Y.\n", sep=""))
 
     if (list_hyper$p_hyper != p_hyper_match)
-      stop(paste("The dimensions of the provided hyperparameters ",
-                 "(list_hyper) are not consistent with that of X.", sep=""))
+      stop(paste("The dimensions (p) of the provided hyperparameters ",
+                 "(list_hyper) are not consistent with that of X.\n", sep=""))
+
+    if (list_hyper$link_hyper != link)
+      stop(paste("The argument link is not consistent with the variable
+                 link_hyper in list_hyper", sep=""))
+
+    if(link == "mix") {
+      if (!all(list_hyper$ind_bin_hyper == ind_bin))
+        stop(paste("The argument ind_bin is not consistent with the variable
+                   ind_bin_hyper in list_hyper", sep=""))
+    }
 
     if (inherits(list_hyper, "hyper")) {
       # remove the entries corresponding to the removed constant predictors in X
@@ -210,13 +258,16 @@ prepare_list_hyper_ <- function(list_hyper, Y, d, p, p_star, q,
     if (!is.null(names(list_hyper$b)) && names(list_hyper$b) != names_x)
       stop("Provided names for the entries of b do not match the colnames of X.")
 
-    if (!is.null(names(list_hyper$eta)) && names(list_hyper$eta) != names_y)
-      stop("Provided names for the entries of eta do not match the colnames of Y.")
+    if (link %in% c("identity", "mix")) {
 
-    if (!is.null(names(list_hyper$kappa)) && names(list_hyper$kappa) != names_y)
-      stop("Provided names for the entries of kappa do not match the colnames of Y.")
+      if (link == "mix") names_y <- names_y[-ind_bin]
 
+      if (!is.null(names(list_hyper$eta)) && names(list_hyper$eta) != names_y)
+        stop("Provided names for the entries of eta do not match the colnames of the continuous variables in Y")
 
+      if (!is.null(names(list_hyper$kappa)) && names(list_hyper$kappa) != names_y)
+        stop("Provided names for the entries of kappa do not match the colnames of the continuous variables in Y")
+    }
 
     if (!is.null(q)) {
 
@@ -226,6 +277,7 @@ prepare_list_hyper_ <- function(list_hyper, Y, d, p, p_star, q,
         # (if any)
         list_hyper$phi <- list_hyper$phi[!bool_rmvd_z]
         list_hyper$xi <- list_hyper$xi[!bool_rmvd_z]
+
       } else {
         q_hyper_match <- q
       }
@@ -251,9 +303,11 @@ prepare_list_hyper_ <- function(list_hyper, Y, d, p, p_star, q,
 
 
 
-prepare_list_init_ <- function(list_init, Y, d, p, p_star, q, bool_rmvd_x,
-                               bool_rmvd_z, names_x, names_y, names_z,
-                               user_seed, verbose) {
+prepare_list_init_ <- function(list_init, Y, p, p_star, q, link, ind_bin,
+                               bool_rmvd_x, bool_rmvd_z, user_seed, verbose) {
+
+  d <- ncol(Y)
+  n <- nrow(Y)
 
   if (is.null(list_init)) {
 
@@ -262,7 +316,7 @@ prepare_list_init_ <- function(list_init, Y, d, p, p_star, q, bool_rmvd_x,
 
     if (verbose) cat(paste("list_init set automatically. \n", sep=""))
 
-    list_init <- auto_set_init_(Y, p, p_star, user_seed, q)
+    list_init <- auto_set_init_(Y, p, p_star, q, user_seed, link, ind_bin)
 
   } else {
 
@@ -284,20 +338,32 @@ prepare_list_init_ <- function(list_init, Y, d, p, p_star, q, bool_rmvd_x,
       p_init_match <- p
     }
 
-
     if (list_init$d_init != d)
-      stop(paste("The dimensions of the provided initial parameters ",
-                 "(list_init) are not consistent with that of Y.", sep=""))
+      stop(paste("The dimensions (d) of the provided initial parameters ",
+                 "(list_init) are not consistent with that of Y.\n", sep=""))
 
     if (list_init$p_init != p_init_match)
-      stop(paste("The dimensions of the provided initial parameters ",
-                 "(list_init) are not consistent with that of X.", sep=""))
+      stop(paste("The dimensions (p) of the provided initial parameters ",
+                 "(list_init) are not consistent with that of X.\n", sep=""))
+
+    if (list_init$link_init != link)
+      stop(paste("The argument link is not consistent with the variable
+                 link_init in list_init", sep=""))
+
+    if(link == "mix") {
+      if (!all(list_init$ind_bin_init == ind_bin))
+        stop(paste("The argument ind_bin is not consistent with the variable
+                   ind_bin_init in list_init", sep=""))
+    }
 
     if (inherits(list_init, "init")) {
       # remove the entries corresponding to the removed constant predictors in X
       # (if any)
       list_init$gam_vb <- list_init$gam_vb[!bool_rmvd_x,, drop = FALSE]
       list_init$mu_beta_vb <- list_init$mu_beta_vb[!bool_rmvd_x,, drop = FALSE]
+
+      if (link == "logit")
+        list_init$sig2_beta_vb <- list_init$sig2_beta_vb[!bool_rmvd_x,, drop = FALSE]
     }
 
     if (!is.null(q)) {
@@ -307,7 +373,17 @@ prepare_list_init_ <- function(list_init, Y, d, p, p_star, q, bool_rmvd_x,
         # remove the entries corresponding to the removed constant predictors in X
         # (if any)
         list_init$mu_alpha_vb <- list_init$mu_alpha_vb[!bool_rmvd_z,, drop = FALSE]
-        list_init$sig2_alpha_vb <- list_init$sig2_alpha_vb[!bool_rmvd_z,, drop = FALSE]
+
+        if (link == "probit"){
+
+          list_init$sig2_alpha_vb <- list_init$sig2_alpha_vb[!bool_rmvd_z]
+
+        } else {
+
+          list_init$sig2_alpha_vb <- list_init$sig2_alpha_vb[!bool_rmvd_z,, drop = FALSE]
+
+        }
+
       } else {
         q_init_match <- q
       }
@@ -325,8 +401,8 @@ prepare_list_init_ <- function(list_init, Y, d, p, p_star, q, bool_rmvd_x,
 }
 
 
-prepare_cv_ <- function(list_cv, n, p, bool_rmvd_x, p0_av, list_hyper, list_init,
-                        verbose) {
+prepare_cv_ <- function(list_cv, n, p, bool_rmvd_x, p0_av, link, list_hyper,
+                        list_init, verbose) {
 
   if (!inherits(list_cv, "cv"))
     stop(paste("The provided list_cv must be an object of class ``cv''. \n",
@@ -334,6 +410,9 @@ prepare_cv_ <- function(list_cv, n, p, bool_rmvd_x, p0_av, list_hyper, list_init
                "for the cross-validation or set list_cv to NULL to skip the ",
                "cross-validation step. ***",
                sep=""))
+
+  if (link != "identity")
+    stop("Cross-validation implemented only for purely continuous response. Please, set list_cv to NULL.")
 
   if (!is.null(p0_av) | !is.null(list_hyper) | !is.null(list_init))
     stop(paste("p0_av, list_hyper and list_init must all be NULL if non NULL ",
@@ -394,15 +473,15 @@ prepare_blocks_ <- function(list_blocks, bool_rmvd_x, list_cv) {
 
   vec_fac_bl <- list_blocks$vec_fac_bl[!bool_rmvd_x]
 
-  tab_bl <- table(list_blocks$vec_fac_bl)
+  tab_bl <- table(vec_fac_bl)
   pres_bl <- tab_bl > 0
-  vec_p_bl <- as.vector(tab_bl[pres_bl])
+
   # in case a block was removed due to the above because of bool_rmvd_x
   n_bl  <- sum(pres_bl)
   if(list_blocks$n_cpus > n_bl) n_cpus <- n_bl
   else n_cpus <- list_blocks$n_cpus
 
-  create_named_list_(n_bl, n_cpus, vec_fac_bl, vec_p_bl)
+  create_named_list_(n_bl, n_cpus, vec_fac_bl)
 
 }
 
@@ -431,13 +510,14 @@ prepare_blocks_ <- function(list_blocks, bool_rmvd_x, list_cv) {
 #' list_Y <- generate_phenos(n = n, d = d, var_err = 0.25)
 #'
 #' dat <- generate_dependence(list_snps = list_X, list_phenos = list_Y,
-#'                            ind_d0 = sample(1:d, d0), ind_p0 = sample(1:p, p0),
-#'                            vec_prob_sh = 0.05, max_tot_pve = 0.9)
+#'                            ind_d0 = sample(1:d, d0),
+#'                            ind_p0 = sample(1:p, p0), vec_prob_sh = 0.05,
+#'                            max_tot_pve = 0.9)
 #' n_bl <- 6
 #' pos_bl <- seq(1, p, by = ceiling(p/n_bl))
 #' list_blocks <- set_blocks(p, pos_bl, n_cpus = 2)
 #'
-#' vb <- locus(Y = dat$phenos, X = dat$snps, p0_av = p0,
+#' vb <- locus(Y = dat$phenos, X = dat$snps, p0_av = p0, link = "identity",
 #'             list_blocks = list_blocks, user_seed = user_seed)
 #'
 #' @seealso \code{\link{locus}}
@@ -498,4 +578,29 @@ set_blocks <- function(p, pos_bl, n_cpus, verbose = TRUE) {
   class(list_blocks) <- "blocks"
 
   list_blocks
+}
+
+
+prepare_ind_bin_ <- function(d, ind_bin, link) {
+
+  if (link == "mix") {
+
+    check_structure_(ind_bin, "vector", "numeric")
+    ind_bin <- sort(unique(ind_bin))
+    if (!all(ind_bin %in% 1:d))
+      stop(paste("All indices provided in ind_bin must be integers between 1 ",
+                 "and the total number of responses, d = ", d, ".", sep = ""))
+
+    if (all(ind_bin == 1:d))
+      stop(paste("Argument ind_bin indicates that all responses are binary. \n",
+                 "Please set link to logit or probit, or change ind_bin to ",
+                 "the indices of the binary responses only.", sep = ""))
+
+  } else if (!is.null(ind_bin)) {
+
+    stop("Argument ind_bin must be NULL if link is not set to mix.")
+
+  }
+
+  ind_bin
 }

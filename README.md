@@ -9,7 +9,7 @@ simultaneous variable selection of predictors and associated outcomes based
 on multivariate regression models. Dependence across outcomes linked to the 
 same predictors is captured through the model hierarchical structure 
 (Hélène Ruffieux, Anthony C. Davison, Jörg Hager, Irina Irincheeva, 2016, 
-arXiv:1609.03400). 
+arXiv:1609.03400, to appear in *Biostatistics*). 
 
 ## Installation
 
@@ -20,10 +20,11 @@ install.packages("devtools")
 devtools::install_github("hruffieux/locus")
 ```
 
-## License
+## License and authors
 
-This project uses the GPL v2 license, see [LICENSE](LICENSE).
-
+This software uses the GPL v2 license, see [LICENSE](LICENSE).
+Authors and copyright are provided in [DESCRIPTION](DESCRIPTION). Loris Michel
+has also contributed to the development of this project.
 
 ## Issues
 
