@@ -11,8 +11,8 @@
 #' @param vec_rho Vector of correlation coefficients. Its length determines the
 #'   number of blocks of correlated SNPs. Must be smaller than p. Set to
 #'   \code{NULL} if independent SNPs.
-#' @param vec_maf Vector of size p containing the reference minor allele
-#'   frequencies used to draw the SNPs. If \code{NULL}, the minor allele
+#' @param vec_maf Vector of length p containing the reference minor allele
+#'   frequencies used to generate the SNPs. If \code{NULL}, the minor allele
 #'   frequencies drawn uniformly at random between 0.05 and 0.5.
 #' @param n_cpus Number of CPUs used when simulating correlated SNP blocks.
 #'   Ignored if independent SNPs. Set to 1 for serial execution.
@@ -129,6 +129,9 @@ generate_snps <- function(n, p, cor_type = NULL, vec_rho = NULL, vec_maf = NULL,
     snps <- do.call(cbind, snps)
   }
 
+  snps <- as.matrix(snps)
+  if (n == 1) snps <- t(snps)
+
   rownames(snps) <- paste("ind_", 1:n, sep = "")
   colnames(snps) <- paste("snp_", 1:p, sep = "")
 
@@ -172,7 +175,7 @@ generate_snps <- function(n, p, cor_type = NULL, vec_rho = NULL, vec_maf = NULL,
 #' n <- 500; p <- 7500
 #' cor_type <- "autocorrelated"; vec_rho <- runif(100, min = 0.25, max = 0.95)
 #' list_fake_real_snps <- generate_snps(n, p, cor_type, vec_rho, n_cpus = 2,
-#'                            user_seed = user_seed)
+#'                                      user_seed = user_seed)
 #' list_snps <- replicate_real_snps(n, list_fake_real_snps$snps, bl_lgth = 100,
 #'                                  n_cpus = 2, user_seed = user_seed)
 #'
@@ -235,13 +238,18 @@ replicate_real_snps <- function(n, real_snps, bl_lgth, p = NULL, maf_thres = NUL
 
   vec_real_maf <- apply(real_snps, 2, mean) / 2
 
+  n_real <- nrow(real_snps)
   n_bl <- floor(p / bl_lgth)
   ind_bl <- make_chunks_(1:p, n_bl)
 
   snps <- parallel::mclapply(1:n_bl, function(bl) {
-    R <- cor(real_snps[, ind_bl[[bl]]])
+
+    p_bl <- length(ind_bl[[bl]])
+
+    # we add some noise to avoid undefined correlation in case of constant phenotypes.
+    R <- cor(real_snps[, ind_bl[[bl]]] + matrix(rnorm(n_real*p_bl), nrow = n_real))
     R <- Matrix::nearPD(R, corr = TRUE, do2eigen = TRUE)$mat
-    p_bl <- ncol(R)
+
     L <- t(chol(R))
     tZ <- matrix(rnorm(n * p_bl), nrow = p_bl, ncol = n)
     X <- t(L %*% tZ) # Gaussian variables
@@ -277,13 +285,19 @@ replicate_real_snps <- function(n, real_snps, bl_lgth, p = NULL, maf_thres = NUL
 #' Generate phenotypic data with prespecified block-wise correlation structure.
 #'
 #' This function generates Gaussian phenotypes with specific block correlation
-#' structure.
+#' structure. If binary phenotypes are wanted, must be used in conjunction with
+#' the \code{\link{generate_dependence}} function: the present function
+#' simulates latent Gaussian phenotypes which will be used in
+#' \code{\link{generate_dependence}} to generate binary phenotypes associated
+#' with SNPs from a probit model.
 #'
 #' @param n Number of observations.
 #' @param d Number of phenos.
 #' @param var_err Vector of length 1 or d containing the variances of the
-#'   Gaussian distributions used to draw the phenotytpes. If of length 1, the
-#'   value is repeated d times.
+#'   (latent) Gaussian distributions used to generate the phenotypes. If of
+#'   length 1, the value is repeated d times. If binary data are targeted
+#'   (using the probit modelling within the \code{\link{generate_dependence}}
+#'   function), var_err is usually set to 1 (no impact on inference).
 #' @param cor_type String describing the type of dependence structure. The
 #'   phenotypes can \code{autocorrelated}, \code{equicorrelated}. Set to
 #'   \code{NULL} for independent phenotypes.
@@ -304,9 +318,12 @@ replicate_real_snps <- function(n, real_snps, bl_lgth, p = NULL, maf_thres = NUL
 #'
 #' @examples
 #' user_seed <- 123; set.seed(user_seed)
-#' n <- 500; d <- 10000; var_err <- runif(d, min = 0.1, max = 0.4)
+#' n <- 500; d <- 10000
 #' cor_type <- "equicorrelated"; vec_rho <- runif(100, min = 0.25, max = 0.95)
-#' list_phenos <- generate_phenos(n, d, var_err, cor_type, vec_rho, n_cpus = 2,
+#' var_err <- runif(d, min = 0.1, max = 0.4)
+#'
+#' list_phenos <- generate_phenos(n, d, var_err, cor_type = cor_type,
+#'                                vec_rho = vec_rho, n_cpus = 2,
 #'                                user_seed = user_seed)
 #'
 #' @seealso \code{\link{generate_snps}}, \code{\link{replicate_real_snps}},
@@ -314,10 +331,8 @@ replicate_real_snps <- function(n, real_snps, bl_lgth, p = NULL, maf_thres = NUL
 #'
 #' @export
 #'
-#' @export
 generate_phenos <- function(n, d, var_err, cor_type = NULL, vec_rho = NULL,
                             n_cpus = 1, user_seed = NULL) {
-
 
   check_structure_(user_seed, "vector", "numeric", 1, null_ok = TRUE)
   if (!is.null(user_seed)){
@@ -331,19 +346,20 @@ generate_phenos <- function(n, d, var_err, cor_type = NULL, vec_rho = NULL,
   check_structure_(d, "vector", "numeric", 1)
   check_natural_(d)
 
-  if (!is.null(cor_type))
-    stopifnot(cor_type %in% c("autocorrelated", "equicorrelated"))
-
   check_structure_(var_err, "vector", "numeric", c(1, d))
   check_positive_(var_err)
   if (length(var_err) == 1) var_err <- rep(var_err, d)
+
+  if (!is.null(cor_type))
+    stopifnot(cor_type %in% c("autocorrelated", "equicorrelated"))
 
   if (is.null(cor_type)) {
 
     if (n_cpus > 1)
       warning("n_cpus is ignored when the phenotypes are generated independently of one another.")
 
-    phenos <- sapply(var_err, function(var_err) rnorm(n, 0, sqrt(var_err))) # Hardy-Weinberg equilibrium
+    phenos <- sapply(var_err, function(var_err) rnorm(n, 0, sqrt(var_err)))
+
     ind_bl <- NULL
 
   } else {
@@ -389,15 +405,18 @@ generate_phenos <- function(n, d, var_err, cor_type = NULL, vec_rho = NULL,
         R[] <- rho_bl
       }
       diag(R) <- 1
-
       L <- t(chol(R))
       tZ <- matrix(sapply(var_err[ind_bl[[bl]]], function(ve) rnorm(n, 0, sqrt(ve))),
                    ncol = n, byrow = TRUE)
       as.matrix(t(L %*% tZ))
+
     }, mc.cores = n_cpus)
 
     phenos <- do.call(cbind, phenos)
   }
+
+  phenos <- as.matrix(phenos)
+  if (n == 1) phenos <- t(phenos)
 
   rownames(phenos) <- paste("ind_", 1:n, sep = "")
   colnames(phenos) <- paste("pheno_", 1:d, sep = "")
@@ -406,6 +425,7 @@ generate_phenos <- function(n, d, var_err, cor_type = NULL, vec_rho = NULL,
   names(var_err) <- colnames(phenos)
 
   list_phenos <- create_named_list_(phenos, var_err, ind_bl)
+
   class(list_phenos) <- "sim_phenos"
   list_phenos
 }
@@ -414,11 +434,16 @@ generate_phenos <- function(n, d, var_err, cor_type = NULL, vec_rho = NULL,
 #' Generate phenotypes emulating real phenotypic data at hand.
 #'
 #' This function simulates phenotypes from real phenotypic data based on their
-#' sample correlation structure.
+#' sample correlation structure. If binary data are provided, will simulate
+#' latent Gaussian data from them (binary data can then be obtained using the
+#' \code{\link{generate_dependence}} function).
 #'
 #' @param n Number of observations.
 #' @param real_phenos Matrix of real phenotypes (rows observations, columns
 #'   phenotypic variables), without missing values.
+#' @param input_family Phenotype distribution assumption for the phenotypes
+#'   provided in real_phenos. Must be either "\code{gaussian}" or
+#'   "\code{binomial}" for binary phenotypes.
 #' @param bl_lgth Number of variables per block for reproducing the dependence
 #'   structure of real phenotypes. Must be between 2 and d. Must be small enough
 #'   (e.g. 1000) for tractability reasons. Default is \code{NULL} for a single
@@ -439,22 +464,26 @@ generate_phenos <- function(n, d, var_err, cor_type = NULL, vec_rho = NULL,
 #'
 #' @examples
 #' user_seed <- 123; set.seed(user_seed)
-#' n <- 500; d <- 1000; var_err <- runif(d, min = 0.1, max = 0.4)
+#' n <- 500; d <- 1000
 #' cor_type <- "equicorrelated"; vec_rho <- runif(100, min = 0.25, max = 0.95)
-#' list_fake_real_phenos <- generate_phenos(n, d, var_err, cor_type, vec_rho,
-#'                                          n_cpus = 2, user_seed = user_seed)
+#'
+#' # Provided phenotypes assumed to be normally distributed
+#' var_err <- runif(d, min = 0.1, max = 0.4)
+#' list_fake_real_phenos <- generate_phenos(n, d, var_err, cor_type = cor_type,
+#'                                          vec_rho = vec_rho, n_cpus = 2,
+#'                                          user_seed = user_seed)
 #' list_phenos <- replicate_real_phenos(n, list_fake_real_phenos$phenos,
-#'                                      bl_lgth = 100, n_cpus = 2,
-#'                                      user_seed = user_seed)
+#'                                      input_family = "gaussian", bl_lgth = 100,
+#'                                      n_cpus = 2, user_seed = user_seed)
 #'
 #' @seealso \code{\link{generate_snps}}, \code{\link{replicate_real_snps}},
 #'   \code{\link{generate_phenos}}, \code{\link{generate_dependence}}
 #'
 #' @export
 #'
-replicate_real_phenos <- function(n, real_phenos, bl_lgth = NULL, d = NULL,
-                                  n_cpus = 1, user_seed = NULL) {
-
+replicate_real_phenos <- function(n, real_phenos, input_family = "gaussian",
+                                  bl_lgth = NULL, d = NULL, n_cpus = 1,
+                                  user_seed = NULL) {
 
   check_structure_(user_seed, "vector", "numeric", 1, null_ok = TRUE)
   if (!is.null(user_seed)){
@@ -462,7 +491,16 @@ replicate_real_phenos <- function(n, real_phenos, bl_lgth = NULL, d = NULL,
     set.seed(user_seed)
   }
 
+  stopifnot(input_family %in% c("gaussian", "binomial"))
+
   check_structure_(real_phenos, "matrix", "numeric")
+
+  var_err <- apply(real_phenos, 2, var)
+
+  if (input_family == "binomial") {
+    if(!identical(as.vector(real_phenos), as.numeric(as.logical(real_phenos))))
+      stop("real_phenos must be a binary matrix when family is set to binomial.")
+  }
 
   check_structure_(n_cpus, "vector", "numeric", 1)
   check_natural_(n_cpus)
@@ -507,16 +545,21 @@ replicate_real_phenos <- function(n, real_phenos, bl_lgth = NULL, d = NULL,
                  "of phenotypes available: ", bl_lgth, " > ", d, sep = ""))
   }
 
+  n_real <- nrow(real_phenos)
   n_bl <- floor(d / bl_lgth)
   ind_bl <- make_chunks_(1:d, n_bl)
 
   phenos <- parallel::mclapply(1:n_bl, function(bl) {
-    R <- cor(real_phenos[, ind_bl[[bl]]])
+    d_bl <- length(ind_bl[[bl]])
+
+    # we add some noise to avoid undefined correlation in case of constant phenotypes.
+    R <- cor(real_phenos[, ind_bl[[bl]]] + matrix(rnorm(n_real*d_bl), nrow = n_real))
     R <- Matrix::nearPD(R, corr = TRUE, do2eigen = TRUE)$mat
-    d_bl <- ncol(R)
     L <- t(chol(R))
-    tZ <- matrix(rnorm(n * d_bl), nrow = d_bl, ncol = n)
-    as.matrix(t(L %*% tZ)) # Gaussian variables
+    tZ <- matrix(sapply(var_err[ind_bl[[bl]]], function(ve) rnorm(n, 0, sqrt(ve))),
+                 ncol = n, byrow = TRUE)
+    as.matrix(t(L %*% tZ))
+
   }, mc.cores = n_cpus)
 
   phenos <- do.call(cbind, phenos)
@@ -524,10 +567,10 @@ replicate_real_phenos <- function(n, real_phenos, bl_lgth = NULL, d = NULL,
   rownames(phenos) <- paste("ind_", 1:n, sep = "")
   colnames(phenos) <- paste("pheno_", 1:d, sep = "")
 
+  ind_bl <- NULL # block chuncks do not necessarily represent blocks of correlated phenotypes.
+
   var_err <- apply(phenos, 2, var) # empirical error variance
   names(var_err) <- colnames(phenos)
-
-  ind_bl <- NULL # block chuncks do not necessarily represent blocks of correlated phenotypes.
 
   list_phenos <- create_named_list_(phenos, var_err, ind_bl)
   class(list_phenos) <- "sim_phenos"
@@ -535,7 +578,7 @@ replicate_real_phenos <- function(n, real_phenos, bl_lgth = NULL, d = NULL,
 }
 
 
-set_pattern_ <- function(d, p, ind_d0, ind_p0, vec_prob_sh, chunks_ph){
+set_pattern_ <- function(d, p, ind_d0, ind_p0, vec_prob_sh, chunks_ph) {
 
   if (is.null(chunks_ph)) { # no imposed correlation block structure (either indep
     # or correlation from real phenotypes). creates artificial chunks.
@@ -545,24 +588,17 @@ set_pattern_ <- function(d, p, ind_d0, ind_p0, vec_prob_sh, chunks_ph){
     n_chunks_ph <- length(chunks_ph)
   }
 
-  ind_d0 <- unique(ind_d0)
-  if(!all(ind_d0 %in% 1:d))
-    stop("All indices provided in ind_d0 must be integers between 1 and d.")
-
-  ind_p0 <- unique(ind_p0)
-  if(!all(ind_p0 %in% 1:p))
-    stop("All indices provided in ind_p0 must be integers between 1 and p.")
-
   check_structure_(vec_prob_sh, "vector", "numeric")
   check_zero_one_(vec_prob_sh)
 
-  pat <- matrix(FALSE, nrow=p, ncol=d)
+  pat <- matrix(FALSE, nrow = p, ncol = d)
 
   for(ind_j in ind_p0) {
 
     # random permutation, so that two different SNPs can be associated with a given
     # block with different probabilities
     vec_prob_sh_perm <- sample(vec_prob_sh, n_chunks_ph, replace = TRUE)
+
     for(ch in 1:n_chunks_ph) {
       ind_ch_d0 <- intersect(ind_d0, chunks_ph[[ch]])
       pat[ind_j, ind_ch_d0] <- sample(c(TRUE, FALSE),
@@ -584,87 +620,109 @@ set_pattern_ <- function(d, p, ind_d0, ind_p0, vec_prob_sh, chunks_ph){
 }
 
 
-generate_eff_sizes_ <- function(d, p, ind_d0, ind_p0, vec_prob_sh, vec_maf,
-                                pve_per_snp, max_tot_pve, var_err, chunks_ph) {
+generate_eff_sizes_ <- function(d, phenos_act, snps_act, ind_d0, ind_p0,
+                                vec_prob_sh, vec_maf, pve_per_snp, max_tot_pve,
+                                var_err, chunks_ph) {
 
   # pve_per_snp average variance explained per snp
-  check_structure_(ind_d0, "vector", "numeric", null_ok = TRUE)
-  check_structure_(ind_p0, "vector", "numeric", null_ok = TRUE)
+  p <- length(vec_maf)
 
-  d0 <- length(ind_d0)
-  p0 <- length(ind_p0)
+  var_snps_act <- apply(snps_act, 2, var)
+  bool_cst <- var_snps_act == 0
+  if (any(bool_cst)) { ### PROB VECTOR NEEDED? OR USE CUTOFF ZERO? ### centered logistic?
 
-  if (xor(d0 < 1, p0 < 1))
-    stop("ind_d0 and ind_p0 must either have both length 0 (no association) or both length >= 1.")
+    if (sum(bool_cst) < 50) {
+      message <- paste("SNP(s) with id ", paste(ind_p0, collapse = " "),
+                       " constant. Effect(s) on the phenotypes removed.\n", sep = "")
 
-  if (d0 < 1 & p0 < 1) {
-
-    pat <- matrix(FALSE, nrow = p, ncol = d)
-    beta <- matrix(0.0, nrow = p, ncol = d)
-
-  } else {
-
-    bool_cst <- vec_maf[ind_p0] %in% c(0.0, 1.0) # there may be remaining constant snps! rm them after.
-    if (any(bool_cst)) {
-      ind_p0 <- ind_p0[!bool_cst]
-      if (length(ind_p0) == 0)
-        stop(paste("SNP(s) number ", ind_p0[bool_cst], " constant. Effect(s) on ",
-                   "the responses removed.\n No remaining ``active'' snps, change ",
-                   "ind_p0 (now empty).\n", sep = ""))
-      warning(paste("SNP(s) number ", ind_p0[bool_cst], " constant. Effect(s) on",
-                    "the responses removed.", sep = ""))
-    }
-
-    pat <- set_pattern_(d, p, ind_d0, ind_p0, vec_prob_sh, chunks_ph)
-
-    check_structure_(vec_maf, "vector", "numeric", p)
-    check_zero_one_(vec_maf)
-
-    check_structure_(var_err, "vector", "numeric", d)
-    check_positive_(var_err)
-
-    max_per_resp <- max(colSums(pat))
-    eps <- .Machine$double.eps^0.75
-    if (is.null(pve_per_snp)) {
-      # sets pve_per_snp to the max possible so that the tot_pve for all responses are below 1.
-      if (is.null(max_tot_pve)) max_tot_pve <- 1 - eps
-
-      pve_per_snp <- max_tot_pve / max_per_resp
+      if (all(bool_cst))
+        stop(paste(message, "No remaining ``active'' SNP, please change ind_p0 ",
+                   "(now empty).\n", sep = ""))
     } else {
-      check_structure_(pve_per_snp, "vector", "numeric", 1)
-      check_zero_one_(pve_per_snp)
-
-      if (max_per_resp * pve_per_snp > 1 - eps)
-        stop(paste("Provided average proportion of variance explained per SNP too ",
-                   "high, would lead to a total genetic variance explained above ",
-                   "100% for at least one response. \n Setting pve_per_snp < 1 / length(ind_p0) ",
-                   "will work for any pattern. \n", sep = ""))
+      message <- paste(sum(bool_cst), " SNPs constant. Effects on the phenotypes ",
+                       "removed.\n", sep = "")
+      if (all(bool_cst))
+        stop(paste(message, "No remaining ``active'' SNP, please change ",
+                   "ind_p0 (now empty).\n", sep = ""))
     }
 
-    beta <- matrix(0.0, nrow = p, ncol = d)
+    warning(message)
 
-    beta[, ind_d0] <- sapply(ind_d0, function(k) {
-
-      p0_k <- sum(pat[,k])
-      vec_pve_per_snp <- rbeta(p0_k, shape1 = 2, shape2 = 5) # positively skewed Beta distribution,
-      # to give more weight to smaller effect sizes
-      vec_pve_per_snp <- vec_pve_per_snp / sum(vec_pve_per_snp) * pve_per_snp * p0_k
-
-      tot_var_expl <- pve_per_snp * p0_k * var_err[k] / (1 - pve_per_snp * p0_k)
-
-      vec_maf_act <- vec_maf[pat[,k]]
-      vec_var_act <- 2 * vec_maf_act * (1 - vec_maf_act)
-
-      beta_k <- rep(0.0, p)
-      beta_k[pat[,k]] <- sqrt((tot_var_expl + var_err[k]) * vec_pve_per_snp / vec_var_act)
-
-      # switches signs with probabilty 0.5
-      beta_k[pat[,k]] <- sample(c(1, -1), p0_k, replace = TRUE) * beta_k[pat[,k]]
-
-      beta_k
-    })
-
+    ind_p0 <- ind_p0[!bool_cst]
   }
+
+  var_phenos_act <- apply(phenos_act, 2, var)
+  bool_cst <- var_phenos_act == 0
+  if (any(bool_cst)) {
+
+    if (sum(bool_cst) < 50) {
+      message <- paste("Phenotype(s) with id ", paste(ind_d0, collapse = " "),
+                       " constant. Association(s) with the SNPs removed.\n", sep = "")
+
+      if (all(bool_cst))
+        stop(paste(message, "No remaining ``active'' phenotype, please change ",
+                   "ind_d0 (now empty).\n", sep = ""))
+    } else {
+      message <- paste(sum(bool_cst), " phenotype(s) constant. Association(s) ",
+                       "with the SNPs removed.\n", sep = "")
+
+      if (all(bool_cst))
+        stop(paste(message, "No remaining ``active'' phenotype, please change ",
+                   "ind_d0 (now empty).\n", sep = ""))
+    }
+
+    warning(message)
+    ind_d0 <- ind_d0[!bool_cst]
+  }
+
+  pat <- set_pattern_(d, p, ind_d0, ind_p0, vec_prob_sh, chunks_ph)
+
+  check_structure_(vec_maf, "vector", "numeric", p)
+  check_zero_one_(vec_maf)
+
+  check_structure_(var_err, "vector", "numeric", d)
+  check_positive_(var_err[ind_d0])
+
+  max_per_resp <- max(colSums(pat))
+  eps <- .Machine$double.eps^0.75
+  if (is.null(pve_per_snp)) {
+    # sets pve_per_snp to the max possible so that the tot_pve for all responses are below 1.
+    if (is.null(max_tot_pve)) max_tot_pve <- 1 - eps
+
+    pve_per_snp <- max_tot_pve / max_per_resp
+  } else {
+    check_structure_(pve_per_snp, "vector", "numeric", 1)
+    check_zero_one_(pve_per_snp)
+
+    if (max_per_resp * pve_per_snp > 1 - eps)
+      stop(paste("Provided average proportion of variance explained per SNP too ",
+                 "high, would lead to a total genetic variance explained above ",
+                 "100% for at least one response. \n Setting pve_per_snp < 1 / length(ind_p0) ",
+                 "will work for any pattern. \n", sep = ""))
+  }
+
+  beta <- matrix(0.0, nrow = p, ncol = d)
+
+  beta[, ind_d0] <- sapply(ind_d0, function(k) {
+
+    p0_k <- sum(pat[,k])
+    vec_pve_per_snp <- rbeta(p0_k, shape1 = 2, shape2 = 5) # positively skewed Beta distribution,
+    # to give more weight to smaller effect sizes
+    vec_pve_per_snp <- vec_pve_per_snp / sum(vec_pve_per_snp) * pve_per_snp * p0_k
+
+    tot_var_expl <- pve_per_snp * p0_k * var_err[k] / (1 - pve_per_snp * p0_k)
+
+    vec_maf_act <- vec_maf[pat[,k]]
+    vec_var_act <- 2 * vec_maf_act * (1 - vec_maf_act)
+
+    beta_k <- rep(0.0, p)
+    beta_k[pat[,k]] <- sqrt((tot_var_expl + var_err[k]) * vec_pve_per_snp / vec_var_act)
+
+    # switches signs with probabilty 0.5
+    beta_k[pat[,k]] <- sample(c(1, -1), p0_k, replace = TRUE) * beta_k[pat[,k]]
+
+    beta_k
+  })
 
   create_named_list_(beta, pat, pve_per_snp)
 
@@ -700,6 +758,10 @@ generate_eff_sizes_ <- function(d, p, ind_d0, ind_p0, vec_prob_sh, vec_maf,
 #' explained are drawn from a Beta distribution with shape parameters 2 and 5,
 #' putting more weights on smaller effects.
 #'
+#' If family is "\code{binomial}", the phenotypes are generated from a probit
+#' model, and the phenotypic variance explained by the SNPs is with respect to
+#' the latent Gaussian variables involved in the probit model.
+#'
 #' @param list_snps An object of class "sim_snps" containing simulated SNP data
 #'   and their corresponding sample minor allele frequencies. It must be
 #'   obtained from the function \code{\link{generate_snps}} or
@@ -717,13 +779,16 @@ generate_eff_sizes_ <- function(d, p, ind_d0, ind_p0, vec_prob_sh, vec_maf,
 #' @param vec_prob_sh Vector providing a set of probabilities with which an
 #'   active SNP is associated with an additional active phenotype in a given
 #'   phenotypic block. See Details section.
+#' @param family Distribution used to generate the phenotypes. Must be either
+#' "\code{gaussian}" or "\code{binomial}" for binary phenotypes.
 #' @param pve_per_snp Average proportion of phenotypic variance explained by
 #'   each active SNP (for an active phenotype). Must be \code{NULL} if
 #'   \code{max_tot_pve} is provided. See Details section.
 #' @param max_tot_pve Maximum proportion of phenotypic variance explained by the
 #'   active SNPs across all phenotypes. Must be \code{NULL} if
 #'   \code{pve_per_snp} is provided. See Details section.
-#' @param user_seed Bla.
+#' @param user_seed Seed set for reproducibility. Default is \code{NULL}, no
+#'   seed set.
 #'
 #' @return An object of class "\code{sim_data}".
 #'  \item{phenos}{Matrix containing the updated phenotypic data (whose variance
@@ -743,16 +808,28 @@ generate_eff_sizes_ <- function(d, p, ind_d0, ind_p0, vec_prob_sh, vec_maf,
 #' @examples
 #' user_seed <- 123; set.seed(user_seed)
 #' n <- 500; p <- 5000; p0 <- 200; d <- 500; d0 <- 400
-#' list_snps <- generate_snps(n = n, p = p)
-#' list_phenos <- generate_phenos(n = n, d = d, var_err = 0.25)
 #'
-#' dat <- generate_dependence(list_snps, list_phenos, ind_d0 = sample(1:d, d0),
+#' list_snps <- generate_snps(n = n, p = p)
+#'
+#' cor_type <- "equicorrelated"; vec_rho <- runif(100, min = 0.25, max = 0.95)
+#'
+#' list_phenos <- generate_phenos(n, d, var_err = 1, cor_type = cor_type,
+#'                                vec_rho = vec_rho, n_cpus = 2)
+#'
+#' # Gaussian phenotypes
+#' dat_g <- generate_dependence(list_snps, list_phenos, ind_d0 = sample(1:d, d0),
 #'                            ind_p0 = sample(1:p, p0), vec_prob_sh = 0.05,
-#'                            max_tot_pve = 0.5)
+#'                            family = "gaussian", max_tot_pve = 0.5)
+#'
+#' # Binary phenotypes
+#' dat_b <- generate_dependence(list_snps, list_phenos, ind_d0 = sample(1:d, d0),
+#'                            ind_p0 = sample(1:p, p0), vec_prob_sh = 0.05,
+#'                            family = "binomial", max_tot_pve = 0.5)
 #'
 #' @export
 #'
-generate_dependence <- function(list_snps, list_phenos, ind_d0, ind_p0, vec_prob_sh,
+generate_dependence <- function(list_snps, list_phenos, ind_d0, ind_p0,
+                                vec_prob_sh, family = "gaussian",
                                 pve_per_snp = NULL, max_tot_pve = NULL,
                                 user_seed = NULL) {
 
@@ -761,6 +838,8 @@ generate_dependence <- function(list_snps, list_phenos, ind_d0, ind_p0, vec_prob
     RNGkind("L'Ecuyer-CMRG") # ensure reproducibility when using mclapply
     set.seed(user_seed)
   }
+
+  stopifnot(family %in% c("gaussian", "binomial"))
 
   if (!is.null(pve_per_snp) & !is.null(max_tot_pve))
     stop("Either pve_per_snp or max_tot_pve must be NULL.")
@@ -775,42 +854,54 @@ generate_dependence <- function(list_snps, list_phenos, ind_d0, ind_p0, vec_prob
                "*** You must either use the function generate_snps to simulate snps ",
                "under Hardy-Weinberg equilibrium or the function replicate_real_snps ",
                "to simulate SNPs from real SNP data, by replicating their minor ",
-               "allele frequencies and linkage desequilibrium structure. ***",
+               "allele frequencies and linkage disequilibrium structure. ***",
                sep=""))
-
 
   if (!inherits(list_phenos, "sim_phenos"))
     stop(paste("The provided list_phenos must be an object of class ``sim_phenos''. \n",
                "*** You must either use the function generate_phenos to simulate ",
-               "phenotypes from (possibly correlated) gaussian variables or the ",
+               "phenotypes from (possibly correlated) Gaussian variables or the ",
                "function replicate_real_phenos to simulate phenotypes from real ",
                "phenotypic data, by replicating their correlation structure. ***",
                sep=""))
 
+  if (!is.null(pve_per_snp) & !is.null(max_tot_pve))
+    stop("Either pve_per_snp or max_tot_pve must be NULL.")
+
+
   with(c(list_snps, list_phenos), {
 
+    d <- ncol(phenos)
     n <- nrow(snps)
     p <- ncol(snps)
 
-    if(n != nrow(phenos))
-      stop("The number of observations used for list_snps and for list_phenos does not match.")
+    check_structure_(ind_d0, "vector", "numeric")
+    check_structure_(ind_p0, "vector", "numeric")
 
-    d <- ncol(phenos)
+    ind_d0 <- sort(unique(ind_d0))
+    if (!all(ind_d0 %in% 1:d))
+      stop("All indices provided in ind_d0 must be integers between 1 and d.")
 
-    bool_cst <- is.nan(colSums(snps[, ind_p0]))
-    if (any(bool_cst)) {
-      ind_p0 <- ind_p0[!bool_cst]
-      if (length(ind_p0) == 0)
-        stop(paste("SNP(s) number ", ind_p0[bool_cst], " constant. Effect(s) on the ",
-                   "responses removed.\n No remaining ``active'' snps, change ",
-                   "ind_p0 (now empty).", sep = ""))
-    }
+    ind_p0 <- sort(unique(ind_p0))
+    if (!all(ind_p0 %in% 1:p))
+      stop("All indices provided in ind_p0 must be integers between 1 and p.")
 
-    list_eff <- generate_eff_sizes_(d, p, ind_d0, ind_p0, vec_prob_sh, vec_maf,
-                                    pve_per_snp, max_tot_pve, var_err,
-                                    chunks_ph = ind_bl)
+    if (n != nrow(phenos))
+      stop("The numbers of observations used for list_snps and for list_phenos do not match.")
+
+    if (n == 1)
+      stop("The number of observations must be greater than 1 in order to generate associations.")
+
+    phenos_act <- phenos[, ind_d0, drop = FALSE]
+    snps_act <- snps[, ind_p0, drop = FALSE]
+    list_eff <- generate_eff_sizes_(d, phenos_act, snps_act, ind_d0, ind_p0,
+                                    vec_prob_sh, vec_maf, pve_per_snp,
+                                    max_tot_pve, var_err, chunks_ph = ind_bl)
     with(list_eff, {
       phenos <- phenos + snps %*% beta
+
+      if (family == "binomial")
+        phenos <- ifelse(phenos > 0, 1, 0)
 
       list_data <- create_named_list_(phenos, snps, beta, pat, pve_per_snp)
       class(list_data) <- "sim_data"
