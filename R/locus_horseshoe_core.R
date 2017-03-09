@@ -49,6 +49,8 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
       }
 
 
+
+
       if (batch) { # some updates are made batch-wise
 
         for (j in 1:p) {
@@ -67,12 +69,19 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
           if(scheme == "noPrec") {
             G_vb[j,] <- (1/2)*sig2_inv_vb * m2_beta[j,]
           } else {
-            G_vb[j,] <- (1/2)*sig2_inv_vb * tau_vb * m2_beta[j,]
+            G_vb[j,] <- (1/2)* sig2_inv_vb * tau_vb * m2_beta[j,]
           }
 
           # % # update of the b values
-          b_vb[j,] <- (1 / (G_vb[j,] * exp(G_vb[j,]) * expint_E1(G_vb[j,]))) - 1
+
+
+
+          b_vb[j,] <- 1/((G_vb[j,] * exp(G_vb[j,]) * expint(G_vb[j,])) + .Machine$double.eps) - 1
+
+
+
         }
+
 
       } else {
 
@@ -110,6 +119,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
                            eta, kappa, lambda, nu, b_vb, mat_x_m1, mu_beta_vb,
                            m2_beta, G_vb,  a_inv_vb, scheme)
 
+
       if (verbose & (it == 1 | it %% 5 == 0))
         cat(paste("Lower bound = ", format(lb_new), "\n\n", sep = ""))
 
@@ -128,6 +138,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
                   " iterations with variational lower bound = ",
                   format(lb_new), ". \n\n",
                   sep = ""))
+
       } else {
         cat("Maximal number of iterations reached before convergence. Exit.")
       }
@@ -183,9 +194,11 @@ update_nu_vb_horseshoe <- function(Y_mat, X_mat, mat_x_m1, b_vb, d, n, p, m1_bet
                 +  colSums((n-1) * m2_beta) +
                 +  colSums(mat_x_m1^2) - (n - 1) * colSums(m1_beta^2))/ 2
   } else {
+
     nu_vb <- nu + (colSums(Y_mat ^ 2) - 2*colSums(Y_mat * (mat_x_m1)) +
                 +  colSums(((n-1) + sig2_inv_vb * b_vb) * m2_beta) +
                 +  colSums(mat_x_m1^2) - (n - 1) * colSums(m1_beta^2))/ 2
+
   }
 
 }
@@ -213,6 +226,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
   a_inv_vb <- 1 / (sig2_inv_vb + A^{-2})
 
   # log values for |tau_{t} and |sig^{-2}
+
   log_tau_vb <- digamma(lambda_vb) - log(nu_vb)
   log_sig2_inv_vb <- digamma(eta_vb) - log(kappa_vb)
 
