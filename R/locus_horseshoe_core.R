@@ -23,6 +23,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
         cat(paste("Iteration ", format(it), "... \n", sep = ""))
 
       # % # update of sigma^{-2}
+
       eta_vb <- (p*d+1)/2
       kappa_vb <- update_kappa_vb_horseshoe(a_inv_vb, m2_beta, b_vb, tau_vb, scheme)
       sig2_inv_vb <- eta_vb / kappa_vb
@@ -37,7 +38,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
         lambda_vb <- lambda + ((n+p)/2)
       }
 
-      nu_vb <- update_nu_vb_horseshoe(Y, X,  mat_x_m1, b_vb, d, n, p, mu_beta_vb, m2_beta, nu, scheme)
+      nu_vb <- update_nu_vb_horseshoe(Y, X,  mat_x_m1, b_vb, d, n, p, mu_beta_vb, m2_beta, nu, sig2_inv_vb, scheme)
       tau_vb <- lambda_vb / nu_vb
 
       # % # update of the variance of the \beta's (inefficient replication of the tau value)
@@ -107,7 +108,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
     # % # computation of the lower bound
     lb_new <- lower_bound_horseshoe(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                            eta, kappa, lambda, nu, b_vb, mat_x_m1, mu_beta_vb,
-                           m2_beta, G_vb, scheme)
+                           m2_beta, G_vb,  a_inv_vb, scheme)
 
       if (verbose & (it == 1 | it %% 5 == 0))
         cat(paste("Lower bound = ", format(lb_new), "\n\n", sep = ""))
@@ -172,7 +173,7 @@ update_kappa_vb_horseshoe <- function(a_inv, m2_beta, b_vb, tau_vb, scheme) {
 }
 
 update_nu_vb_horseshoe <- function(Y_mat, X_mat, mat_x_m1, b_vb, d, n, p, m1_beta,
-                             m2_beta, nu, scheme) {
+                             m2_beta, nu, sig2_inv_vb, scheme) {
   # put X_mat and Y_mat instead of X and Y to avoid conflicts with the function sapply,
   # which has also an "X" argument with different meaning...
 
@@ -193,7 +194,7 @@ update_nu_vb_horseshoe <- function(Y_mat, X_mat, mat_x_m1, b_vb, d, n, p, m1_bet
 # this function should be changed adequately
 lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                          eta, kappa, lambda, nu,  b_vb, mat_x_m1, m1_beta,
-                         m2_beta, G_vb, scheme) {
+                         m2_beta, G_vb, a_inv_vb, scheme) {
 
   # update for \tau_{t}
   if(scheme == "noPrec") {
@@ -202,7 +203,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
     lambda_vb <- lambda + ((n+p)/2)
   }
   nu_vb <- update_nu_vb_horseshoe(Y, X, mat_x_m1, b_vb, d, n, p, m1_beta,
-                         m2_beta, nu, scheme)
+                         m2_beta, nu, sig2_inv_vb, scheme)
 
   # updates for \sigma^{-2}
   eta_vb <- (p*d+1)/2
