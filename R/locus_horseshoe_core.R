@@ -76,7 +76,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
 
 
 
-          b_vb[j,] <- 1/((G_vb[j,] * exp(G_vb[j,]) * expint(G_vb[j,])) + .Machine$double.eps) - 1
+          b_vb[j,] <- 1/(G_vb[j,] * Q_approx(G_vb[j,])) - 1
 
 
 
@@ -239,7 +239,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
        lambda*log(nu) - lambda_vb*log(nu_vb)) +
        ((1/2)-eta_vb)*log_sig2_inv_vb - a_inv_vb*(sig2_inv_vb + A^{-2}) -2*lgamma(1/2) + (1/2)*log(A^{-2}) +
        1 - log(sig2_inv_vb + A^{-2}) + eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) - (p*d*log(pi)) +
-       sum(log(expint_E1(G_vb)) + G_vb) + p*d - sum(G_vb*exp(G_vb)*expint_E1(G_vb))
+       sum(log(Q_approx(G_vb))) + p*d - sum(G_vb*Q_approx(G_vb))
   } else {
     l <- (-1)*(n*d/2)* log(2*pi) + p*d/2 + ((n+p)/2)*sum(log_tau_vb) - (1/2)*sum(log(sig2_beta_vb)) -
         crossprod(tau_vb/2,(nu_vb - nu)) +
@@ -248,7 +248,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
        lambda*log(nu) - lambda_vb*log(nu_vb)) +
        ((1/2)-eta_vb)*log_sig2_inv_vb - a_inv_vb*(sig2_inv_vb + A^{-2}) -2*lgamma(1/2) + (1/2)*log(A^{-2}) +
        1 - log(sig2_inv_vb + A^{-2}) + eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) - (p*d*log(pi)) +
-       sum(log(expint_E1(G_vb)) + G_vb) + p*d - sum(G_vb*exp(G_vb)*expint_E1(G_vb))
+      sum(log(Q_approx(G_vb))) + p*d - sum(G_vb*Q_approx(G_vb))
   }
 
   return(l)
