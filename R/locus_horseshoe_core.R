@@ -9,10 +9,9 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
                      # copy-on-write for large objects
 
     # second moment of the \beta's
-    m2_beta <- mu_beta_vb ^ 2 + sig2_beta_vb
+    m2_beta  <- (mu_beta_vb ^ 2) + sig2_beta_vb
     mat_x_m1 <-  X %*% mu_beta_vb
 
-    a_inv_vb <- A^{2} / 2
     converged <- FALSE
     lb_old <- -Inf
     it <- 1
@@ -23,9 +22,9 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
         cat(paste("Iteration ", format(it), "... \n", sep = ""))
 
       # % # update of sigma^{-2}
-
-      eta_vb <- (p*d+1)/2
-      kappa_vb <- update_kappa_vb_horseshoe(a_inv_vb, m2_beta, b_vb, tau_vb, scheme)
+      eta_vb      <- (p*d+1)/2
+      kappa_vb    <- update_kappa_vb_horseshoe(a_inv_vb, m2_beta, b_vb, tau_vb, scheme)
+      
       sig2_inv_vb <- eta_vb / kappa_vb
 
       # % # update of a^{-1}
@@ -39,13 +38,14 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
       }
 
       nu_vb <- update_nu_vb_horseshoe(Y, X,  mat_x_m1, b_vb, d, n, p, mu_beta_vb, m2_beta, nu, sig2_inv_vb, scheme)
+     
       tau_vb <- lambda_vb / nu_vb
 
       # % # update of the variance of the \beta's (inefficient replication of the tau value)
       if(scheme == "noPrec") {
-        sig2_beta_vb <- 1 / ((n-1)*matrix(tau_vb,ncol=d, nrow=p, byrow = T) + (sig2_inv_vb * b_vb))
+        sig2_beta_vb <- 1 / sweep((sig2_inv_vb * b_vb), 2 ,(n-1)*tau_vb)
       } else {
-        sig2_beta_vb <- 1 / (matrix(tau_vb,ncol=d, nrow=p, byrow = T)*((n-1) + (sig2_inv_vb * b_vb)))
+        sig2_beta_vb <- 1 / sweep((n-1) + (sig2_inv_vb * b_vb), 2, tau_vb)
       }
 
 
@@ -63,7 +63,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
 
           mat_x_m1 <- mat_x_m1 + tcrossprod(X[, j], mu_beta_vb[j, ])
 
-          m2_beta <- (mu_beta_vb ^ 2) + sig2_beta_vb
+          m2_beta <- (mu_beta_vb ^ 2)  +  sig2_beta_vb 
 
           # % # update of the G values
           if(scheme == "noPrec") {
@@ -83,35 +83,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
         }
 
 
-      } else {
-
-        for (k in 1:d) {
-
-          vec_x_j_k <-  X %*% mu_beta_vb[, k]
-
-          for (j in 1:p) {
-
-            vec_x_j_k <- vec_x_j_k - X[, j] * mu_beta_vb[j, k]
-
-            # % # update of the \mu values
-            mu_beta_vb[j, k] <- sig2_beta_vb[k] * tau_vb[k] *
-              crossprod(X[, j], Y[,k] - vec_x_j_k)
-
-            vec_x_j_k <- vec_x_j_k + X[, j] * mu_beta_vb[j, k]
-
-            m2_beta[j,k] <- (mu_beta_vb[j,k])^2 + sig2_beta_vb[j,k]
-
-            # % # update of the G values
-            G_vb[j,k] <- (1/1)*sig2_inv_vb * m2_beta[j,k]
-
-            # % # update of the b values
-            b_vb[j,k] <- (1 / (G[j,k] * exp(G[j,k]) * expint_E1(G[j,k]))) - 1
-          }
-
-        }
-
       }
-
 
 
     # % # computation of the lower bound
@@ -232,7 +204,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
 
   # lower bound as in the paper
   if(scheme == "noPrec") {
-    l <- (-1)*(n*d/2)* log(2*pi) + p*d/2 + (n/2)*sum(log_tau_vb) - (1/2)*sum(log(sig2_beta_vb)) -
+    l <- (-1)*(n*d/2)* log(2*pi) + p*d/2 + (n/2)*sum(log_tau_vb) + (1/2)*sum(log(sig2_beta_vb)) -
        crossprod(tau_vb/2,(nu_vb - nu)) +
        +(p*d/2)*log_sig2_inv_vb - (1/2) * sum(b_vb * sig2_inv_vb * m2_beta) +
        sum((lambda-lambda_vb) * log_tau_vb + lambda_vb * (1 - (nu/nu_vb)) - lgamma(lambda) + lgamma(lambda_vb) +
@@ -241,7 +213,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
        1 - log(sig2_inv_vb + A^{-2}) + eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) - (p*d*log(pi)) +
        sum(log(Q_approx(G_vb))) + p*d - sum(G_vb*Q_approx(G_vb))
   } else {
-    l <- (-1)*(n*d/2)* log(2*pi) + p*d/2 + ((n+p)/2)*sum(log_tau_vb) - (1/2)*sum(log(sig2_beta_vb)) -
+    l <- (-1)*(n*d/2)* log(2*pi) + p*d/2 + ((n+p)/2)*sum(log_tau_vb) + (1/2)*sum(log(sig2_beta_vb)) -
         crossprod(tau_vb/2,(nu_vb - nu)) +
        + (p*d/2)*log_sig2_inv_vb - (1/2) *  sig2_inv_vb * sum(tau_vb * colSums(b_vb * m2_beta)) +
        sum((lambda-lambda_vb) * log_tau_vb + lambda_vb * (1 - (nu/nu_vb)) - lgamma(lambda) + lgamma(lambda_vb) +
