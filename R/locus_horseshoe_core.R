@@ -9,7 +9,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
                      # copy-on-write for large objects
 
     # second moment of the \beta's
-    m2_beta <- sweep(mu_beta_vb ^ 2, 2, sig2_beta_vb, `+`)
+    m2_beta <- mu_beta_vb ^ 2 + sig2_beta_vb
     mat_x_m1 <-  X %*% mu_beta_vb
 
     a_inv_vb <- A^{2} / 2
@@ -63,7 +63,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
 
           mat_x_m1 <- mat_x_m1 + tcrossprod(X[, j], mu_beta_vb[j, ])
 
-          m2_beta <- sweep(mu_beta_vb ^ 2, 2, sig2_beta_vb, `+`)
+          m2_beta <- (mu_beta_vb ^ 2) + sig2_beta_vb
 
           # % # update of the G values
           if(scheme == "noPrec") {

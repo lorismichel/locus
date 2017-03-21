@@ -10,7 +10,7 @@ locus_core_ <- function(Y, X, list_hyper, gam_vb, mu_beta_vb, sig2_beta_vb,
   with(list_hyper, { # list_init not used with the with() function to avoid
     # copy-on-write for large objects
     m1_beta <- mu_beta_vb * gam_vb
-    m2_beta <- sweep(mu_beta_vb ^ 2, 2, sig2_beta_vb, `+`) * gam_vb
+    m2_beta <- (mu_beta_vb ^ 2 + sig2_beta_vb) * gam_vb
 
     mat_x_m1 <-  X %*% m1_beta
 
@@ -114,7 +114,7 @@ locus_core_ <- function(Y, X, list_hyper, gam_vb, mu_beta_vb, sig2_beta_vb,
 
       }
 
-      m2_beta <- sweep(mu_beta_vb ^ 2, 2, sig2_beta_vb, `+`) * gam_vb
+      m2_beta <- (mu_beta_vb ^ 2 + sig2_beta_vb) * gam_vb
 
       if (!batch)
         mat_x_m1 <-  X %*% m1_beta
