@@ -24,7 +24,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
       # % # update of sigma^{-2}
       eta_vb      <- (p*d+1)/2
       kappa_vb    <- update_kappa_vb_horseshoe(a_inv_vb, m2_beta, b_vb, tau_vb, scheme)
-      
+
       sig2_inv_vb <- eta_vb / kappa_vb
 
       # % # update of a^{-1}
@@ -38,14 +38,14 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
       }
 
       nu_vb <- update_nu_vb_horseshoe(Y, X,  mat_x_m1, b_vb, d, n, p, mu_beta_vb, m2_beta, nu, sig2_inv_vb, scheme)
-     
+
       tau_vb <- lambda_vb / nu_vb
 
       # % # update of the variance of the \beta's (inefficient replication of the tau value)
       if(scheme == "noPrec") {
-        sig2_beta_vb <- 1 / sweep((sig2_inv_vb * b_vb), 2 ,(n-1)*tau_vb)
+        sig2_beta_vb <- 1 / sweep((sig2_inv_vb * b_vb), 2 ,(n-1)*tau_vb,`*`)
       } else {
-        sig2_beta_vb <- 1 / sweep((n-1) + (sig2_inv_vb * b_vb), 2, tau_vb)
+        sig2_beta_vb <- 1 / sweep((n-1) + (sig2_inv_vb * b_vb), 2, tau_vb,`*`)
       }
 
 
@@ -63,7 +63,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
 
           mat_x_m1 <- mat_x_m1 + tcrossprod(X[, j], mu_beta_vb[j, ])
 
-          m2_beta <- (mu_beta_vb ^ 2)  +  sig2_beta_vb 
+          m2_beta <- (mu_beta_vb ^ 2)  +  sig2_beta_vb
 
           # % # update of the G values
           if(scheme == "noPrec") {
