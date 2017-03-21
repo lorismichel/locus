@@ -8,8 +8,8 @@
 simultaneous variable selection of predictors and associated outcomes based
 on multivariate regression models. Dependence across outcomes linked to the 
 same predictors is captured through the model hierarchical structure 
-(Hélène Ruffieux, Anthony C. Davison, Jörg Hager, Irina Irincheeva, 2016, 
-arXiv:1609.03400, to appear in *Biostatistics*). 
+(H. Ruffieux, A. C. Davison, J. Hager, I. Irincheeva, Efficient inference 
+for genetic association studies with multiple outcomes, *Biostatistics*, 2017). 
 
 ## Installation
 
@@ -19,6 +19,19 @@ To install, run the following commands in R:
 install.packages("devtools")
 devtools::install_github("hruffieux/locus")
 ```
+
+## Algorithms
+
+The algorithms for joint predictor and response selection provided in **locus**
+implement inference for regression models with 
+
+* identity link;
+* logistic link;
+* probit link; 
+* identity-probit link.
+
+Moreover, predictor-level external knowledge can be incorportated to inform the
+selection.
 
 ## License and authors
 

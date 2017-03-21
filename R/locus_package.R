@@ -16,5 +16,8 @@
 #'
 #' @docType package
 #' @name locus-package
+#' @useDynLib locus
+#' @import RcppEigen
+#' @importFrom Rcpp evalCpp
 #' @importFrom stats cor dnorm median pnorm qnorm rbeta rbinom rgamma rnorm runif setNames var
 NULL

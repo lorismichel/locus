@@ -1,23 +1,22 @@
 locus_core_ <- function(Y, X, list_hyper, gam_vb, mu_beta_vb, sig2_beta_vb,
                         tau_vb, tol, maxit, batch, verbose, full_output = FALSE) {
 
+  # Y must have been centered, and X, standardized.
+
   d <- ncol(Y)
   n <- nrow(Y)
   p <- ncol(X)
 
-  # Y must have been centered, and X, standardized.
-
   with(list_hyper, { # list_init not used with the with() function to avoid
     # copy-on-write for large objects
-    m1_beta <- mu_beta_vb * gam_vb
-    m2_beta <- (mu_beta_vb ^ 2 + sig2_beta_vb) * gam_vb
 
-    mat_x_m1 <-  X %*% m1_beta
+    m1_beta <- update_m1_beta_(gam_vb, mu_beta_vb)
+    m2_beta <- update_m2_beta_(gam_vb, mu_beta_vb, sig2_beta_vb, sweep = TRUE)
 
-    rowsums_gam <- rowSums(gam_vb)
-    sum_gam <- sum(rowsums_gam)
+    mat_x_m1 <- update_mat_x_m1_(X, m1_beta)
 
-    lambda_vb <- nu_vb <- eta_vb <- kappa_vb <- a_vb <- b_vb <- NULL
+    rs_gam <- rowSums(gam_vb)
+    sum_gam <- sum(rs_gam)
 
     converged <- FALSE
     lb_old <- -Inf
@@ -37,99 +36,70 @@ locus_core_ <- function(Y, X, list_hyper, gam_vb, mu_beta_vb, sig2_beta_vb,
 
       # % #
       eta_vb <- update_eta_vb_(n, eta, gam_vb)
-
       kappa_vb <- update_kappa_vb_(Y, X, kappa, mat_x_m1, m1_beta, m2_beta, sig2_inv_vb)
-
 
       tau_vb <- eta_vb / kappa_vb
       # % #
 
-      sig2_beta_vb <- 1 / ((n - 1 + sig2_inv_vb) * tau_vb)
+      sig2_beta_vb <- update_sig2_beta_vb_(n, sig2_inv_vb, tau_vb)
 
-      log_tau_vb <- digamma(eta_vb) - log(kappa_vb)
-      log_sig2_inv_vb <- digamma(lambda_vb) - log(nu_vb)
+      log_tau_vb <- update_log_tau_vb_(eta_vb, kappa_vb)
+      log_sig2_inv_vb <- update_log_sig2_inv_vb_(lambda_vb, nu_vb)
 
-      vec_part_digam <- digamma(a + b + d)
+      digam_sum <- digamma(a + b + d)
 
       if (batch) { # some updates are made batch-wise
 
-        log_om_vb <- digamma(a + rowsums_gam) - vec_part_digam
-        log_1_min_om_vb <- digamma(b - rowsums_gam + d) - vec_part_digam
+        log_om_vb <- update_log_om_vb(a, digam_sum, rs_gam)
+        log_1_min_om_vb <- update_log_1_min_om_vb(b, d, digam_sum, rs_gam)
 
-        for (j in 1:p) {
-          mat_x_m1 <- mat_x_m1 - tcrossprod(X[, j], m1_beta[j, ])
+        coreLoop(X, Y, gam_vb, log_om_vb, log_1_min_om_vb, log_sig2_inv_vb,
+                 log_tau_vb, m1_beta, mat_x_m1, mu_beta_vb, sig2_beta_vb, tau_vb)
 
-          mu_beta_vb[j, ] <- sig2_beta_vb * (tau_vb *
-                                               crossprod(Y - mat_x_m1, X[, j]))
 
-          log_part_gam_vb <- log_om_vb[j] + log(sig2_beta_vb) / 2 +
-            mu_beta_vb[j, ] ^ 2 / (2 * sig2_beta_vb)
-
-          log_part2_gam_vb <- log_1_min_om_vb[j] - log_tau_vb / 2 -
-            log_sig2_inv_vb / 2
-
-          gam_vb[j, ] <- exp(log_part_gam_vb -
-                               log_sum_exp_mat_(list(log_part_gam_vb, log_part2_gam_vb)))
-
-          m1_beta[j, ] <- mu_beta_vb[j, ] * gam_vb[j, ]
-
-          mat_x_m1 <- mat_x_m1 + tcrossprod(X[, j], m1_beta[j, ])
-        }
-
-        rowsums_gam <- rowSums(gam_vb)
+        rs_gam <- rowSums(gam_vb)
 
       } else {
 
         for (k in 1:d) {
 
-          log_om_vb <- digamma(a + rowsums_gam) - vec_part_digam
-          log_1_min_om_vb <- digamma(b - rowsums_gam + d) - vec_part_digam
+          log_om_vb <- update_log_om_vb(a, digam_sum, rs_gam)
+          log_1_min_om_vb <- update_log_1_min_om_vb(b, d, digam_sum, rs_gam)
 
-          vec_x_j_k <-  X %*% m1_beta[, k]
           for (j in 1:p) {
 
-            vec_x_j_k <- vec_x_j_k - X[, j] * m1_beta[j, k]
+            mat_x_m1[, k] <- mat_x_m1[, k] - X[, j] * m1_beta[j, k]
 
-            mu_beta_vb[j, k] <- sig2_beta_vb[k] * tau_vb[k] *
-              crossprod(X[, j], Y[,k] - vec_x_j_k)
+            mu_beta_vb[j, k] <- sig2_beta_vb[k] * tau_vb[k] * crossprod(Y[, k] - mat_x_m1[, k], X[, j])
 
-            log_part_gam_vb <- log_om_vb[j] + log(sig2_beta_vb[k]) / 2 +
-              mu_beta_vb[j, k] ^ 2 / (2 * sig2_beta_vb[k])
-
-            log_part2_gam_vb <- log_1_min_om_vb[j] - log_tau_vb[k] / 2 -
-              log_sig2_inv_vb / 2
-
-            gam_vb[j, k] <- exp(log_part_gam_vb -
-                                  log_sum_exp_(c(log_part_gam_vb, log_part2_gam_vb)))
+            gam_vb[j, k] <- exp(-log_one_plus_exp_(log_1_min_om_vb[j] - log_om_vb[j] -
+                                                     log_tau_vb[k] / 2 - log_sig2_inv_vb / 2 -
+                                                     mu_beta_vb[j, k] ^ 2 / (2 * sig2_beta_vb[k]) -
+                                                     log(sig2_beta_vb[k]) / 2))
 
             m1_beta[j, k] <- mu_beta_vb[j, k] * gam_vb[j, k]
 
-            vec_x_j_k <- vec_x_j_k + X[, j] * m1_beta[j, k]
+            mat_x_m1[, k] <- mat_x_m1[, k] + X[, j] * m1_beta[j, k]
 
           }
 
-          rowsums_gam <- rowSums(gam_vb)
+          rs_gam <- rowSums(gam_vb)
 
         }
 
       }
 
-      m2_beta <- (mu_beta_vb ^ 2 + sig2_beta_vb) * gam_vb
+      m2_beta <- update_m2_beta_(gam_vb, mu_beta_vb, sig2_beta_vb, sweep = TRUE)
 
-      if (!batch)
-        mat_x_m1 <-  X %*% m1_beta
-
-      a_vb <- a + rowsums_gam
-      b_vb <- b - rowsums_gam + d
+      a_vb <- update_a_vb(a, rs_gam)
+      b_vb <- update_b_vb(b, d, rs_gam)
       om_vb <- a_vb / (a_vb + b_vb)
 
-      sum_gam <- sum(rowsums_gam)
+      sum_gam <- sum(rs_gam)
 
       lb_new <- lower_bound_(Y, X, a, a_vb, b, b_vb, eta, gam_vb, kappa, lambda,
                              nu, sig2_beta_vb, sig2_inv_vb, tau_vb, m1_beta,
-
                              m2_beta, mat_x_m1, sum_gam)
-
 
 
       if (verbose & (it == 1 | it %% 5 == 0))
@@ -156,11 +126,9 @@ locus_core_ <- function(Y, X, list_hyper, gam_vb, mu_beta_vb, sig2_beta_vb,
     lb_opt <- lb_new
 
     if (full_output) { # for internal use only
-
       create_named_list_(a, a_vb, b, b_vb, eta, gam_vb, kappa, lambda,
                          nu, sig2_beta_vb, sig2_inv_vb, tau_vb, m1_beta,
                          m2_beta, mat_x_m1, sum_gam)
-
     } else {
       names_x <- colnames(X)
       names_y <- colnames(Y)
@@ -176,39 +144,10 @@ locus_core_ <- function(Y, X, list_hyper, gam_vb, mu_beta_vb, sig2_beta_vb,
 }
 
 
-update_lambda_vb_ <- function(lambda, sum_gam) {
-
-  lambda + sum_gam / 2
-
-}
-
-update_nu_vb_ <- function(nu, m2_beta, tau_vb) {
-
-  as.numeric(nu + crossprod(tau_vb, colSums(m2_beta)) / 2)
-
-}
-
-update_eta_vb_ <- function(n, eta, gam_vb) {
-
-  eta + n / 2 + colSums(gam_vb) / 2
-
-}
-
-
-update_kappa_vb_ <- function(Y, X, kappa, mat_x_m1, m1_beta, m2_beta, sig2_inv_vb) {
-  n <- nrow(Y)
-
-  kappa + (colSums(Y^2) - 2 * colSums(Y * mat_x_m1)  +
-             (n - 1 + sig2_inv_vb) * colSums(m2_beta) +
-             colSums(mat_x_m1^2) - (n - 1) * colSums(m1_beta^2))/ 2
-
-}
-
 
 lower_bound_ <- function(Y, X, a, a_vb, b, b_vb, eta, gam_vb, kappa, lambda, nu,
                          sig2_beta_vb, sig2_inv_vb, tau_vb, m1_beta, m2_beta,
                          mat_x_m1, sum_gam) {
-
 
   n <- nrow(Y)
 

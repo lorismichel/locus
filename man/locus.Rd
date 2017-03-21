@@ -4,8 +4,8 @@
 \alias{locus}
 \title{Fit sparse multivariate regression models using variational inference.}
 \usage{
-locus(Y, X, p0_av, Z = NULL, link = "identity", ind_bin = NULL,
-  list_hyper = NULL, list_init = NULL, list_cv = NULL,
+locus(Y, X, p0_av, Z = NULL, V = NULL, link = "identity",
+  ind_bin = NULL, list_hyper = NULL, list_init = NULL, list_cv = NULL,
   list_blocks = NULL, user_seed = NULL, tol = 1e-04, maxit = 1000,
   batch = TRUE, save_hyper = FALSE, save_init = FALSE, verbose = TRUE)
 }
@@ -26,6 +26,11 @@ that candidate predictor s is associated with at least one response.}
 covariates. Variables in \code{Z} are not subject to selection. \code{NULL}
 if no covariate. Factor covariates must be supplied after transformation to
 dummy coding. No intercept must be supplied.}
+
+\item{V}{Annotation matrix of dimension p x r, where r is the number of
+variables representing external information on the candidate predictors
+which may make their selection more or less likely. \code{NULL} if no such
+information.}
 
 \item{link}{Response link. Must be "\code{identity}" for linear regression,
 "\code{logit}" for logistic regression, "\code{probit}" for probit
@@ -151,6 +156,15 @@ vb_g <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0,
 q <- 4
 Z <- matrix(rnorm(n * q), nrow = n)
 vb_g_z <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0,  Z = Z,
+                link = "identity", user_seed = user_seed)
+
+# Continuous outcomes with external annotation
+#
+r <- 4
+V <- matrix(rnorm(p * r), nrow = p)
+bool_p0 <- rowSums(dat_g$pat) > 0
+V[bool_p0, ] <- rnorm(sum(bool_p0) * r, mean = 2) # informative annotations
+vb_g_v <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0,  V = V,
                 link = "identity", user_seed = user_seed)
 
 # Binary outcomes

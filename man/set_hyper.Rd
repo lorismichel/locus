@@ -5,7 +5,8 @@
 \title{Gather model hyperparameters provided by the user.}
 \usage{
 set_hyper(d, p, lambda, nu, a, b, eta, kappa, link = "identity",
-  ind_bin = NULL, q = NULL, phi = NULL, xi = NULL)
+  ind_bin = NULL, q = NULL, phi = NULL, xi = NULL, r = NULL,
+  m0 = NULL)
 }
 \arguments{
 \item{d}{Number of responses.}
@@ -68,6 +69,15 @@ repeated q times. Default is \code{NULL}, for \code{Z} \code{NULL}.}
 \eqn{\xi} for the prior distributions for the sizes of the nonzero
 covariate effects, \eqn{\zeta}. If of length 1, the provided value is
 repeated q times. Default is \code{NULL}, for \code{Z} \code{NULL}.}
+
+\item{r}{Number of variables representing external information on the
+candidate predictors. Default is \code{NULL}, for \code{V} \code{NULL}.}
+
+\item{m0}{Vector of length 1 or p providing the values of hyperparameter
+\eqn{m0} for the prior distribution of \eqn{c0} linked to the proportion of
+responses associated with each candidate predictor. If of length 1, the
+provided value is repeated p times. Default is \code{NULL}, for \code{V}
+\code{NULL}.}
 }
 \value{
 An object of class "\code{hyper}" preparing user hyperparameter in a
@@ -120,6 +130,21 @@ list_hyper_g_z <- set_hyper(d, p, lambda = 1, nu = 1, a = 1, b = 4*d-1,
 
 vb_g_z <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0, Z = Z,
                 link = "identity", list_hyper = list_hyper_g_z,
+                user_seed = user_seed)
+
+# Continuous outcomes with external annotation
+#
+r <- 4
+V <- matrix(rnorm(p * r), nrow = p)
+bool_p0 <- rowSums(dat_g$pat) > 0
+V[bool_p0, ] <- rnorm(sum(bool_p0) * r, mean = 2) # informative annotations
+
+list_hyper_g_v <- set_hyper(d, p, lambda = 1, nu = 1, a = NULL, b = NULL,
+                            eta = 1, kappa = apply(dat_g$phenos, 2, var),
+                            link = "identity", r = r, m0 = 0)
+
+vb_g_v <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0,  V = V,
+                link = "identity", list_hyper = list_hyper_g_v,
                 user_seed = user_seed)
 
 # Binary outcomes

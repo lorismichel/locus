@@ -55,6 +55,13 @@
 #'   \eqn{\xi} for the prior distributions for the sizes of the nonzero
 #'   covariate effects, \eqn{\zeta}. If of length 1, the provided value is
 #'   repeated q times. Default is \code{NULL}, for \code{Z} \code{NULL}.
+#' @param r Number of variables representing external information on the
+#'   candidate predictors. Default is \code{NULL}, for \code{V} \code{NULL}.
+#' @param m0 Vector of length 1 or p providing the values of hyperparameter
+#'   \eqn{m0} for the prior distribution of \eqn{c0} linked to the proportion of
+#'   responses associated with each candidate predictor. If of length 1, the
+#'   provided value is repeated p times. Default is \code{NULL}, for \code{V}
+#'   \code{NULL}.
 #'
 #' @return An object of class "\code{hyper}" preparing user hyperparameter in a
 #'   form that can be passed to the \code{\link{locus}} function.
@@ -97,6 +104,21 @@
 #'
 #' vb_g_z <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0, Z = Z,
 #'                 link = "identity", list_hyper = list_hyper_g_z,
+#'                 user_seed = user_seed)
+#'
+#' # Continuous outcomes with external annotation
+#' #
+#' r <- 4
+#' V <- matrix(rnorm(p * r), nrow = p)
+#' bool_p0 <- rowSums(dat_g$pat) > 0
+#' V[bool_p0, ] <- rnorm(sum(bool_p0) * r, mean = 2) # informative annotations
+#'
+#' list_hyper_g_v <- set_hyper(d, p, lambda = 1, nu = 1, a = NULL, b = NULL,
+#'                             eta = 1, kappa = apply(dat_g$phenos, 2, var),
+#'                             link = "identity", r = r, m0 = 0)
+#'
+#' vb_g_v <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0,  V = V,
+#'                 link = "identity", list_hyper = list_hyper_g_v,
 #'                 user_seed = user_seed)
 #'
 #' # Binary outcomes
@@ -171,7 +193,8 @@
 #' @export
 #'
 set_hyper <- function(d, p, lambda, nu, a, b, eta, kappa, link = "identity",
-                      ind_bin = NULL, q = NULL, phi = NULL, xi = NULL) {
+                      ind_bin = NULL, q = NULL, phi = NULL, xi = NULL,
+                      r = NULL, m0 = NULL) {
 
   check_structure_(d, "vector", "numeric", 1)
   check_natural_(d)
@@ -182,17 +205,41 @@ set_hyper <- function(d, p, lambda, nu, a, b, eta, kappa, link = "identity",
   check_structure_(q, "vector", "numeric", 1, null_ok = TRUE)
   if (!is.null(q)) check_natural_(q)
 
+  check_structure_(r, "vector", "numeric", 1, null_ok = TRUE)
+  if (!is.null(r)) check_natural_(r)
+
   stopifnot(link %in% c("identity", "logit", "probit", "mix"))
 
   ind_bin <- prepare_ind_bin_(d, ind_bin, link)
 
-  check_structure_(a, "vector", "double", c(1, p))
-  check_positive_(a)
-  if (length(a) == 1) a <- rep(a, p)
+  if (is.null(r)) {
 
-  check_structure_(b, "vector", "double", c(1, p))
-  check_positive_(b)
-  if (length(b) == 1) b <- rep(b, p)
+    check_structure_(a, "vector", "double", c(1, p))
+    check_positive_(a)
+    if (length(a) == 1) a <- rep(a, p)
+
+    check_structure_(b, "vector", "double", c(1, p))
+    check_positive_(b)
+    if (length(b) == 1) b <- rep(b, p)
+
+    s02 <- s2 <- NULL
+
+    if (!is.null(m0))
+      stop("Provided r = NULL, not consitent with m0 being non-null.")
+
+  } else {
+
+    check_structure_(m0, "vector", "double", c(1, p))
+    if (length(m0) == 1) m0 <- rep(m0, p)
+
+    # prior info
+    s02 <- 1 # prior variance for the intercept, bernoulli-probit
+    s2 <- 1e-2 # prior variance for external info coefficients (effects likely to be concentrated around zero)
+
+    if (!is.null(a) | !is.null(b))
+      stop("Provided r != NULL, not consitent with a and b being non-null.")
+
+  }
 
   check_structure_(lambda, "vector", "double", 1)
   check_positive_(lambda)
@@ -238,13 +285,15 @@ set_hyper <- function(d, p, lambda, nu, a, b, eta, kappa, link = "identity",
   d_hyper <- d
   p_hyper <- p
   q_hyper <- q
+  r_hyper <- r
+
   ind_bin_hyper <- ind_bin
 
   link_hyper <- link
 
-  list_hyper <- create_named_list_(d_hyper, p_hyper, q_hyper, link_hyper,
+  list_hyper <- create_named_list_(d_hyper, p_hyper, q_hyper, r_hyper, link_hyper,
                                    ind_bin_hyper, eta, kappa, lambda, nu, a, b,
-                                   phi, xi)
+                                   phi, xi, m0, s02, s2)
 
   class(list_hyper) <- "hyper"
 
@@ -253,7 +302,7 @@ set_hyper <- function(d, p, lambda, nu, a, b, eta, kappa, link = "identity",
 }
 
 
-auto_set_hyper_ <- function(Y, p, p_star, q, link, ind_bin) {
+auto_set_hyper_ <- function(Y, p, p_star, q, r, link, ind_bin) {
 
   d <- ncol(Y)
 
@@ -285,13 +334,30 @@ auto_set_hyper_ <- function(Y, p, p_star, q, link, ind_bin) {
   if (length(p_star) == 1) p0 <- p_star
   else p0 <- sum(p_star / p)
 
-  a <- rep(1, p)
-  b <- d * (p - p_star) / p_star
-  if (length(b) == 1) b <- rep(b, p)
+  if (is.null(r)) {
 
-  # hyperparameters of beta distributions
-  check_positive_(a)
-  check_positive_(b)
+    a <- rep(1, p)
+    b <- d * (p - p_star) / p_star
+    if (length(b) == 1) b <- rep(b, p)
+
+    # hyperparameters of beta distributions
+    check_positive_(a)
+    check_positive_(b)
+
+    m0 <- s02 <- s2 <- NULL
+
+  } else {
+    m0 <- -sqrt(d+1) * qnorm(((p-p_star)/p)^(1/d)) # sparsity control under the assumption that s02 = 1
+    m0[!is.finite(m0)] <- -sqrt(d+1) * 8 # cases for which the argument of qnorm is very close to 1.
+    if (length(m0) == 1) m0 <- rep(m0, p)
+
+    # prior info
+    s02 <- 1 # prior variance for the intercept, bernoulli-probit
+    s2 <- 1e-2 # prior variance for external info coefficients (effects likely to be concentrated around zero)
+
+    a <- b <- NULL
+
+  }
 
   if (!is.null(q)) {
 
@@ -306,13 +372,15 @@ auto_set_hyper_ <- function(Y, p, p_star, q, link, ind_bin) {
   d_hyper <- d
   p_hyper <- p
   q_hyper <- q
+  r_hyper <- r
+
   ind_bin_hyper <- ind_bin
 
   link_hyper <- link
 
-  list_hyper <- create_named_list_(d_hyper, p_hyper, q_hyper, link_hyper,
-                                   ind_bin_hyper, eta,
-                                   kappa, lambda, nu, a, b, phi, xi)
+  list_hyper <- create_named_list_(d_hyper, p_hyper, q_hyper, r_hyper, link_hyper,
+                                   ind_bin_hyper, eta, kappa, lambda, nu, a, b,
+                                   phi, xi, m0, s02, s2)
 
   class(list_hyper) <- "out_hyper"
 
@@ -367,6 +435,16 @@ auto_set_hyper_ <- function(Y, p, p_star, q, link, ind_bin) {
 #'   for the variational parameter yielding estimates of effect variances for
 #'   covariate-response pairs. Vector of length q for \code{link = "probit"}.
 #'   Default is \code{NULL}, for \code{Z} \code{NULL}.
+#' @param r Number of variables representing external information on the
+#'   candidate predictors. Default is \code{NULL}, for \code{V} \code{NULL}.
+#' @param mu_c0_vb Vector of length p with initial values for the variational
+#'   parameter linked to the proportion of responses associated with each
+#'   candidate predictor. Default is \code{NULL}, for \code{V} \code{NULL}.
+#' @param mu_c_vb Matrix of size r x d with initial values for the variational
+#'   parameter yielding regression coefficient estimates for the influence of
+#'   external information on the candidate predictors on their selection.
+#'   Default is \code{NULL}, for \code{V} \code{NULL}.
+#'
 #'
 #' @return An object of class "\code{init}" preparing user initial values for
 #'   the variational parameters in a form that can be passed to the
@@ -417,6 +495,23 @@ auto_set_hyper_ <- function(Y, p, p_star, q, link, ind_bin) {
 #' # p0_av as a slightly overestimated guess of p0.
 #' vb_g_z <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0, Z = Z,
 #'                 link = "identity", list_init = list_init_g_z)
+#'
+#' # Continuous outcomes with external annotation
+#' #
+#' r <- 4
+#' V <- matrix(rnorm(p * r), nrow = p)
+#' bool_p0 <- rowSums(dat_g$pat) > 0
+#' V[bool_p0, ] <- rnorm(sum(bool_p0) * r, mean = 2) # informative annotations
+#'
+#' mu_c0_vb <- rnorm(p, mean = -1)
+#' mu_c_vb <- matrix(rnorm(r * d, mean = 0, sd = 0.01), nrow = r)
+#'
+#' list_init_g_v <- set_init(d, p, gam_vb, mu_beta_vb, sig2_beta_vb, tau_vb,
+#'                           link = "identity", r = r, mu_c0_vb = mu_c0_vb,
+#'                           mu_c_vb = mu_c_vb)
+#'
+#' vb_g_v <- locus(Y = dat_g$phenos, X = dat_g$snps, p0_av = p0,  V = V,
+#'                 link = "identity", list_init = list_init_g_v)
 #'
 #' # Binary outcomes
 #' #
@@ -504,7 +599,8 @@ auto_set_hyper_ <- function(Y, p, p_star, q, link, ind_bin) {
 #'
 set_init <- function(d, p, gam_vb, mu_beta_vb, sig2_beta_vb, tau_vb,
                      link = "identity", ind_bin = NULL, q = NULL,
-                     mu_alpha_vb = NULL, sig2_alpha_vb = NULL) {
+                     mu_alpha_vb = NULL, sig2_alpha_vb = NULL, r = NULL,
+                     mu_c0_vb = NULL, mu_c_vb = NULL) {
 
   check_structure_(d, "vector", "numeric", 1)
   check_natural_(d)
@@ -514,6 +610,9 @@ set_init <- function(d, p, gam_vb, mu_beta_vb, sig2_beta_vb, tau_vb,
 
   check_structure_(q, "vector", "numeric", 1, null_ok = TRUE)
   if (!is.null(q)) check_natural_(q)
+
+  check_structure_(r, "vector", "numeric", 1, null_ok = TRUE)
+  if (!is.null(r)) check_natural_(r)
 
   stopifnot(link %in% c("identity", "logit", "probit", "mix"))
 
@@ -582,16 +681,30 @@ set_init <- function(d, p, gam_vb, mu_beta_vb, sig2_beta_vb, tau_vb,
 
   }
 
+
+  if (!is.null(r)) {
+
+    check_structure_(mu_c0_vb, "vector", "double", p)
+    check_structure_(mu_c_vb, "matrix", "double", c(r, d))
+
+  } else if (!is.null(mu_c0_vb) | !is.null(mu_c_vb)) {
+
+    stop("Provided r = NULL, not consistent with mu_c0_vb or mu_c_vb being non-null.")
+
+  }
+
+
   d_init <- d
   p_init <- p
   q_init <- q
+  r_init <- r
   ind_bin_init <- ind_bin
 
   link_init <- link
 
-  list_init <- create_named_list_(d_init, p_init, q_init, link_init,
+  list_init <- create_named_list_(d_init, p_init, q_init, r_init, link_init,
                                   ind_bin_init, gam_vb, mu_beta_vb, sig2_beta_vb,
-                                  tau_vb, mu_alpha_vb, sig2_alpha_vb)
+                                  tau_vb, mu_alpha_vb, sig2_alpha_vb, mu_c0_vb, mu_c_vb)
 
   class(list_init) <- "init"
 
@@ -599,7 +712,7 @@ set_init <- function(d, p, gam_vb, mu_beta_vb, sig2_beta_vb, tau_vb,
 }
 
 
-auto_set_init_ <- function(Y, p, p_star, q, user_seed, link, ind_bin) {
+auto_set_init_ <- function(Y, p, p_star, q, r, user_seed, link, ind_bin) {
 
   d <- ncol(Y)
 
@@ -693,17 +806,29 @@ auto_set_init_ <- function(Y, p, p_star, q, user_seed, link, ind_bin) {
 
   }
 
+  if (!is.null(r)) {
+
+    mu_c0_vb <- rnorm(p)
+    mu_c_vb <- matrix(rnorm(r * d), nrow = r)
+
+  } else {
+
+    mu_c0_vb <- mu_c_vb <- NULL
+
+  }
+
 
   d_init <- d
   p_init <- p
   q_init <- q
+  r_init <- r
   ind_bin_init <- ind_bin
 
   link_init <- link
 
-  list_init <- create_named_list_(d_init, p_init, q_init, link_init,
+  list_init <- create_named_list_(d_init, p_init, q_init, r_init, link_init,
                                   ind_bin_init, gam_vb, mu_beta_vb, sig2_beta_vb,
-                                  tau_vb, mu_alpha_vb, sig2_alpha_vb)
+                                  tau_vb, mu_alpha_vb, sig2_alpha_vb, mu_c0_vb, mu_c_vb)
 
   class(list_init) <- "out_init"
 
