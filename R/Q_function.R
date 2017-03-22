@@ -10,10 +10,10 @@ Q_approx <- function(x, eps1 = 10^{-30},eps2 = 10^{-7}) {
   D_p <- 0
   Delta <- 2 + eps2
   j <- 1
-  while( abs(Delta-1)>= eps2) {
+  while(abs(Delta-1)>= eps2) {
     j <- j+1
-    D_c <- x + 2*j -1 -(j-1)^{2}*D_p
-    C_c <- x + 2*j -1 -(j-1)^{2}/C_p
+    D_c <- x + 2*j -1 - ((j-1)^{2})*D_p
+    C_c <- x + 2*j -1 - ((j-1)^{2})/C_p
     D_c <- 1/D_c
     Delta <- C_c*D_c
     f_c <- f_p*Delta
@@ -21,6 +21,6 @@ Q_approx <- function(x, eps1 = 10^{-30},eps2 = 10^{-7}) {
     C_p <- C_c
     D_p <- D_c
   }
-  return(1/(x+1 + f_c))
+  return(1/(x+ 1 + f_c))
   }
 }
