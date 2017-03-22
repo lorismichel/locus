@@ -1,4 +1,4 @@
-require(expint)
+#' @export
 locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_beta_vb,
                         sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",loop="c++",
                         full_output = FALSE) {
