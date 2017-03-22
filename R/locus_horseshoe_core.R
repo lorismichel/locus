@@ -1,6 +1,6 @@
 require(expint)
 locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_beta_vb,
-                        sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",
+                        sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",loop="c++",
                         full_output = FALSE) {
 
   # Y must have been centered, and X, standardized.
@@ -51,8 +51,10 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
         sig2_beta_vb <- 1 / sweep((n-1) + (sig2_inv_vb * b_vb), 2, tau_vb,`*`)
       }
 
+
       if (batch) { # some updates are made batch-wise
 
+        if(loop != "c++") {
         for (j in 1:p) {
 
           mat_x_m1 <- mat_x_m1 - tcrossprod(X[, j], mu_beta_vb[j, ])
@@ -62,19 +64,19 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
                                                crossprod(Y - mat_x_m1, X[, j]))
 
           mat_x_m1 <- mat_x_m1 + tcrossprod(X[, j], mu_beta_vb[j, ])
-
-          # % # update of the G values
-          if(scheme == "noPrec") {
-            G_vb[j,] <- (1/2) * sig2_inv_vb * m2_beta[j,]
-          } else {
-            G_vb[j,] <- (1/2) * sig2_inv_vb * tau_vb * m2_beta[j,]
-          }
-
-          # % # update of the b values
-
-
+        }
+        } else {
+          coreHorseShoeLoop(X, Y, mat_x_m1, mu_beta_vb, sig2_beta_vb, tau_vb)
         }
 
+        # % # update of the G values
+        if(scheme == "noPrec") {
+          G_vb <- (1/2) * sig2_inv_vb * m2_beta
+        } else {
+          G_vb <- (1/2) * sig2_inv_vb * tau_vb * m2_beta
+        }
+
+        # % # update of the b values
         b_vb <- (G_vb * Q_approx(G_vb))^{-1} - 1
 
         m2_beta <- (mu_beta_vb ^ 2)  +  sig2_beta_vb
