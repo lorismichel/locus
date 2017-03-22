@@ -146,3 +146,28 @@ void coreProbitLoop(const MapMat X,
 
 }
 
+
+// for locus_horseshoe_core function
+// [[Rcpp::export]]
+void coreHorseShoeLoop(const MapMat X,
+              const MapMat Y,
+              MapMat mat_x_m1,
+              MapArr2D mu_beta_vb,
+              const MapArr1D sig2_beta_vb,
+              const MapArr1D tau_vb) {
+
+  //const Arr1D c = -(log_tau_vb + log_sig2_inv_vb + log(sig2_beta_vb) )/ 2;
+
+  for (int j = 0; j < X.cols(); ++j) {
+
+    mat_x_m1.noalias() -= X.col(j) * mu_beta_vb.row(j);
+
+    mu_beta_vb.row(j) = sig2_beta_vb * tau_vb *
+      ((Y - mat_x_m1).transpose() * X.col(j)).array();
+    mat_x_m1.noalias() += X.col(j) * mu_beta_vb.row(j);
+
+  }
+
+
+
+}
