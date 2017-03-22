@@ -21,7 +21,7 @@ user_seed <- 121; set.seed(user_seed)
  sig2_beta_vb <- matrix(10^{-5},nrow=p,ncol=d)
  tau_vb <- lambda / nu
  tol <- 1
- maxit <- 30
+ maxit <- 70
  batch = TRUE
  verbose = TRUE
  full_output = TRUE
