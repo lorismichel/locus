@@ -14,14 +14,14 @@ user_seed <- 121; set.seed(user_seed)
  b_vb <- matrix(1,ncol=d,nrow=p)
  lambda <- rep(5*10^{-1},d)
  nu <- rep(1*10^{-1},d)
- A <- 10^{5}
+ A <- 1
  list_hyper <- list(lambda = lambda, nu = nu, A = A)
  sigma2_vb <- 1000
  mu_beta_vb <- matrix(0,nrow=p,ncol=d)
  sig2_beta_vb <- matrix(10^{-5},nrow=p,ncol=d)
  tau_vb <- lambda / nu
  tol <- 1
- maxit <- 100
+ maxit <- 30
  batch = TRUE
  verbose = TRUE
  full_output = TRUE
