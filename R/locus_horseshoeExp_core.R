@@ -25,7 +25,8 @@ locus_core_horseshoeExp <- function(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma
 
       # % # update of sigma^{-2}
       eta_vb <- (p*d+1)/2
-      kappa_vb <- update_kappa_vb_horseshoeExp(a_inv_vb, m2_beta, b_vb, tau_vb, scheme)
+      kappa_vb <- update_kappa_vb_horseshoeExp(a_inv_vb, m2_beta,
+                                               b_vb, tau_vb, scheme)
       sig2_inv_vb <- eta_vb / kappa_vb
 
       # % # update of a^{-1}
@@ -38,7 +39,9 @@ locus_core_horseshoeExp <- function(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma
         lambda_vb <- lambda + ((n+p)/2)
       }
 
-      nu_vb <- update_nu_vb_horseshoeExp(Y, X,  mat_x_m1, b_vb, d, n, p, mu_beta_vb, m2_beta, nu, sig2_inv_vb, scheme)
+      nu_vb <- update_nu_vb_horseshoeExp(Y, X,  mat_x_m1, b_vb, d, n, p,
+                                         mu_beta_vb, m2_beta, nu,
+                                         sig2_inv_vb, scheme)
       tau_vb <- lambda_vb / nu_vb
 
       # % # update of the variance of the \beta's (inefficient replication of the tau value)
@@ -80,7 +83,7 @@ locus_core_horseshoeExp <- function(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma
 
         }
 
-        c_vb <- 1 / (b_vb+1)
+        c_vb <- 1 / (b_vb + 1)
         m2_beta <- (mu_beta_vb ^ 2)  +  sig2_beta_vb
 
 

@@ -71,9 +71,11 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
           }
 
           # % # update of the b values
-          b_vb[j,] <- (G_vb[j,] * Q_approx(G_vb[j,]))^{-1} - 1
+
 
         }
+
+        b_vb <- (G_vb * Q_approx(G_vb))^{-1} - 1
 
         m2_beta <- (mu_beta_vb ^ 2)  +  sig2_beta_vb
 
