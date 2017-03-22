@@ -8,7 +8,7 @@ user_seed <- 121; set.seed(user_seed)
                             vec_prob_sh = 0.5, max_tot_pve = 0.6)
 
 
- beta <- matrix(rexp(n = p*d,rate = 1000),ncol=d,nrow=p)
+ #beta <- matrix(rexp(n = p*d,rate = 1000),ncol=d,nrow=p)
  #noise <-  matrix(rnorm(n = n*d,mean = 0,sd = 1),ncol=d,nrow=n)
  #Y <- X %*% beta + noise
  b_vb <- matrix(1,ncol=d,nrow=p)
@@ -39,7 +39,7 @@ vb_g <- locus(Y = dat$phenos, X = dat$snps, p0_av = 200,
 
 res<- locus_core_horseshoe(Y, X, d = d, n = n, p = p, list_hyper, b_vb, sigma2_vb, mu_beta_vb,
                                    sig2_beta_vb, tau_vb, tol, maxit = maxit, batch, verbose,
-                                   scheme="Prec", full_output = TRUE)
+                                   scheme="Prec",loop = "c++",full_output = TRUE)
 
 # roc curves
 require(ROCR)

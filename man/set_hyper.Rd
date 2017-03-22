@@ -218,3 +218,4 @@ vb_mix_z <- locus(Y = Y_mix, X = dat_b$snps, p0_av = p0_mix, Z = Z,
 \seealso{
 \code{\link{set_init}}, \code{\link{locus}}
 }
+

@@ -208,3 +208,4 @@ vb_mix_z <- locus(Y = Y_mix, X = dat_b$snps, p0_av = p0,  Z = Z,
 \code{\link{set_hyper}}, \code{\link{set_init}},
   \code{\link{set_cv}}, \code{\link{set_blocks}}
 }
+

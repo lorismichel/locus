@@ -111,3 +111,4 @@ list_perm <- generate_null(n_perm = 10, dat$phenos, dat$snps, p0_av = p0,
 \seealso{
 \code{\link{locus}}
 }
+

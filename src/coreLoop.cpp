@@ -152,6 +152,7 @@ void coreProbitLoop(const MapMat X,
 void coreHorseShoeLoop(const MapMat X,
               const MapMat Y,
               MapMat mat_x_m1,
+              MapMat m1_beta,
               MapArr2D mu_beta_vb,
               const MapArr1D sig2_beta_vb,
               const MapArr1D tau_vb) {
@@ -160,11 +161,13 @@ void coreHorseShoeLoop(const MapMat X,
 
   for (int j = 0; j < X.cols(); ++j) {
 
-    mat_x_m1.noalias() -= X.col(j) * mu_beta_vb.row(j);
+    mat_x_m1.noalias() -= X.col(j) * m1_beta.row(j);
 
     mu_beta_vb.row(j) = sig2_beta_vb * tau_vb *
       ((Y - mat_x_m1).transpose() * X.col(j)).array();
-    mat_x_m1.noalias() += X.col(j) * mu_beta_vb.row(j);
+
+    m1_beta.row(j) = mu_beta_vb.row(j);
+    mat_x_m1.noalias() += X.col(j) * m1_beta.row(j);
 
   }
 

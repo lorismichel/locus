@@ -1,4 +1,7 @@
+#' @title HS locus
+#' @description HS locus
 #' @export
+#'
 locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_beta_vb,
                         sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",loop="c++",
                         full_output = FALSE) {
@@ -66,7 +69,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
           mat_x_m1 <- mat_x_m1 + tcrossprod(X[, j], mu_beta_vb[j, ])
         }
         } else {
-          coreHorseShoeLoop(X, Y, mat_x_m1, mu_beta_vb, sig2_beta_vb, tau_vb)
+          coreHorseShoeLoop(X, Y, mat_x_m1, mu_beta_vb, mu_beta_vb, sig2_beta_vb, tau_vb)
         }
 
         # % # update of the G values

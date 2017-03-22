@@ -175,3 +175,19 @@ BEGIN_RCPP
     return R_NilValue;
 END_RCPP
 }
+// coreHorseShoeLoop
+void coreHorseShoeLoop(const MapMat X, const MapMat Y, MapMat mat_x_m1, MapMat m1_beta, MapArr2D mu_beta_vb, const MapArr1D sig2_beta_vb, const MapArr1D tau_vb);
+RcppExport SEXP locus_coreHorseShoeLoop(SEXP XSEXP, SEXP YSEXP, SEXP mat_x_m1SEXP, SEXP m1_betaSEXP, SEXP mu_beta_vbSEXP, SEXP sig2_beta_vbSEXP, SEXP tau_vbSEXP) {
+BEGIN_RCPP
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const MapMat >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const MapMat >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< MapMat >::type mat_x_m1(mat_x_m1SEXP);
+    Rcpp::traits::input_parameter< MapMat >::type m1_beta(m1_betaSEXP);
+    Rcpp::traits::input_parameter< MapArr2D >::type mu_beta_vb(mu_beta_vbSEXP);
+    Rcpp::traits::input_parameter< const MapArr1D >::type sig2_beta_vb(sig2_beta_vbSEXP);
+    Rcpp::traits::input_parameter< const MapArr1D >::type tau_vb(tau_vbSEXP);
+    coreHorseShoeLoop(X, Y, mat_x_m1, m1_beta, mu_beta_vb, sig2_beta_vb, tau_vb);
+    return R_NilValue;
+END_RCPP
+}
