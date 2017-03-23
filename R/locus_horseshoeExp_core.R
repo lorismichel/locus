@@ -1,7 +1,9 @@
-# Loris Michel, EPFL
-# locus horseshoe based on an exponential family reduction
+#' @title HS locus Exp
+#' @description HS locus Exp
+#' @export
+#'
 locus_core_horseshoeExp <- function(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma2_vb, mu_beta_vb,
-                        sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",
+                        sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",loop="c++",
                         full_output = FALSE) {
 
   # Y must have been centered, and X, standardized.
@@ -56,32 +58,30 @@ locus_core_horseshoeExp <- function(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma
 
       if (batch) { # some updates are made batch-wise
 
-        for (j in 1:p) {
+        if(loop != "c++") {
+          for (j in 1:p) {
 
-          mat_x_m1 <- mat_x_m1 - tcrossprod(X[, j], mu_beta_vb[j, ])
+            mat_x_m1 <- mat_x_m1 - tcrossprod(X[, j], mu_beta_vb[j, ])
 
-          # % # update of the \mu_beta
-          mu_beta_vb[j, ] <- sig2_beta_vb[j,] * (tau_vb *
-                                               crossprod(Y - mat_x_m1, X[, j]))
+            # % # update of the \mu_beta
+            mu_beta_vb[j, ] <- sig2_beta_vb[j,] * (tau_vb *
+                                                     crossprod(Y - mat_x_m1, X[, j]))
 
-          mat_x_m1 <- mat_x_m1 + tcrossprod(X[, j], mu_beta_vb[j, ])
-
-
+            mat_x_m1 <- mat_x_m1 + tcrossprod(X[, j], mu_beta_vb[j, ])
+          }
+        } else {
+          coreHorseShoeLoop(X, Y, mat_x_m1, mu_beta_vb, mu_beta_vb, sig2_beta_vb, tau_vb)
+        }
 
         # % # update of the G values
-          if(scheme == "noPrec") {
-            G_vb[j,] <- (1/2)* sig2_inv_vb * m2_beta[j,]
-          } else {
-            G_vb[j,] <- (1/2)* sig2_inv_vb * tau_vb * m2_beta[j,]
-          }
-
-          # % # update of the b values and c values
-           b_vb[j,] <- 1/(G_vb[j,] + c_vb[j,])
-
-
-
-
+        if(scheme == "noPrec") {
+          G_vb <- (1/2)* sig2_inv_vb * m2_beta
+        } else {
+          G_vb <- (1/2)* sig2_inv_vb * tau_vb * m2_beta
         }
+
+        # % # update of the b values and c values
+        b_vb <- 1/(G_vb + c_vb)
 
         c_vb <- 1 / (b_vb + 1)
         m2_beta <- (mu_beta_vb ^ 2)  +  sig2_beta_vb
@@ -214,12 +214,11 @@ lower_bound_horseshoeExp <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, t
   log_a_inv <- digamma(1) - log(A^{-2} + sig2_inv_vb)
 
  # do the computation for the beta's
-  L_1 <- -(1/2)*(n*d)*log(2*pi) + (n/2)*sum(log_tau_vb) -
-         crossprod(tau_vb, ESS-nu)
+  L_1 <- sum(-(n/2) * log(2*pi) + (n/2)*log_tau_vb - tau_vb * (ESS - nu))
 
   if(scheme == "noPrec") {
     L_2 <- -(1/2)*(p*d)*log(2*pi) + (1/2)*(p*d)*log_sig2_inv_vb +
-      (1/2)*sum(log_b_vb)  -
+      (1/2) * sum(log_b_vb)  -
       (1/2) * sig2_inv_vb * sum(b_vb * m2_beta)
   } else {
     L_2 <- -(1/2)*(p*d)*log(2*pi) + (1/2)*(p*d)*log_sig2_inv_vb +
@@ -248,6 +247,13 @@ H_6 <- -p*d + sum(log(G_vb + c_vb))
 L_7 <- -(1/2)*sum(log_c_vb) - sum(c_vb) - (p*d)*lgamma(1/2)
 H_7 <- -p*d + sum(log(1 + b_vb))
 
+print(L_1)
+print(L_2)
+print(L_H_3)
+print(H_4)
+print(H_5)
+print(H_6)
+print(H_7)
 
 l <- L_1 + (L_2 - H_2) + L_H_3 + (L_4 - H_4) + (L_5 - H_5) +
      (L_6 - H_6) + (L_7 - H_7)

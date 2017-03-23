@@ -208,7 +208,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
   log_a_inv <- digamma(1) - log(A^{-2} + sig2_inv_vb)
   #log_sig2_inv_vb <- digamma(eta_vb) - log(kappa_vb)
 
-  L_1 <- -(n*d/2)* log(2*pi) + (n/2)*sum(log_tau_vb) - crossprod(tau_vb, ESS - nu)
+  L_1 <- sum(-(n/2) * log(2*pi) + (n/2)*log_tau_vb - tau_vb * (ESS - nu))
 
   if(scheme == "noPrec") {
     L_2 <- -(1/2)*(p*d)*log(2*pi) + (1/2)*(p*d)*log_sig2_inv_vb +

@@ -1,27 +1,27 @@
 user_seed <- 121; set.seed(user_seed)
- n <- 80; p <- 5000; p0 <- 500; d <- 50; d0 <- 30
+ n <- 80; p <- 500; p0 <- 50; d <- 50; d0 <- 20
  list_X <- generate_snps(n = n, p = p)
- list_Y <- generate_phenos(n = n, d = d, var_err = 0.4)
+ list_Y <- generate_phenos(n = n, d = d, var_err = 0.8)
 
  dat <- generate_dependence(list_snps = list_X, list_phenos = list_Y,
                             ind_d0 = sample(1:d, d0), ind_p0 = sample(1:p, p0),
-                            vec_prob_sh = 0.5, max_tot_pve = 0.6)
+                            vec_prob_sh = 0.5, max_tot_pve = 0.3)
 
 
  #beta <- matrix(rexp(n = p*d,rate = 1000),ncol=d,nrow=p)
  #noise <-  matrix(rnorm(n = n*d,mean = 0,sd = 1),ncol=d,nrow=n)
  #Y <- X %*% beta + noise
  b_vb <- matrix(1,ncol=d,nrow=p)
- lambda <- rep(5*10^{-1},d)
+ lambda <- rep(2*10^{-1},d)
  nu <- rep(1*10^{-1},d)
- A <- 1
+ A <- 10^{-2}
  list_hyper <- list(lambda = lambda, nu = nu, A = A)
  sigma2_vb <- 1000
  mu_beta_vb <- matrix(0,nrow=p,ncol=d)
  sig2_beta_vb <- matrix(10^{-5},nrow=p,ncol=d)
  tau_vb <- lambda / nu
  tol <- 1
- maxit <- 70
+ maxit <- 120
  batch = TRUE
  verbose = TRUE
  full_output = TRUE
@@ -32,9 +32,9 @@ user_seed <- 121; set.seed(user_seed)
 
  mod <- locus_core_horseshoeExp(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma2_vb, mu_beta_vb,
                                      sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "Prec",
-                                     full_output = TRUE)
+                                     loop="c++",full_output = TRUE)
 
-vb_g <- locus(Y = dat$phenos, X = dat$snps, p0_av = 200,
+vb_g <- locus(Y = dat$phenos, X = dat$snps, p0_av = 100,
                link = "identity", user_seed = user_seed)
 
 res<- locus_core_horseshoe(Y, X, d = d, n = n, p = p, list_hyper, b_vb, sigma2_vb, mu_beta_vb,
@@ -43,9 +43,9 @@ res<- locus_core_horseshoe(Y, X, d = d, n = n, p = p, list_hyper, b_vb, sigma2_v
 
 # roc curves
 require(ROCR)
-score.HSEXP <- 1-(1 / (n-1 + mod$sig2_inv_vb*mod$b_vb))
+score.HSEXP <- (1 / (n-1 + mod$sig2_inv_vb*mod$b_vb))
 #score.HSEXP <- 1 / mod$b_vb
-score.HS <- 1-(1 / (n-1 + res$sig2_inv_vb*res$b_vb))
+score.HS <- (1 / (n-1 + res$sig2_inv_vb*res$b_vb))
 preds.HSEXP <- prediction(as.numeric(score.HSEXP),as.numeric(dat$beta != 0))
 preds.LOCUS <- prediction(as.numeric(vb_g$gam_vb),as.numeric(dat$beta != 0))
 preds.HS <- prediction(as.numeric(score.HS),as.numeric(dat$beta != 0))
@@ -56,7 +56,7 @@ plot(performance(preds.HS ,"tpr","fpr"),col="brown",add=T)
 
 score <- 1 / (1 + mod$b_vb)
 w <- cbind(dat$beta[,1],mod$mu_beta_vb[,1])
-w <- cbind(dat$beta[,1],score[,1])
+w <- cbind(dat$beta[,1],score.HSEXP[,1])
 w <- cbind(dat$beta[,1],mod$b_vb[,1])
 w <- cbind(dat$beta[,1],mod$sig2_beta_vb[,1])
 w <- cbind(dat$beta[,1],G_vb[,1])
