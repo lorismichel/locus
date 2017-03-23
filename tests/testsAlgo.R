@@ -1,5 +1,5 @@
 user_seed <- 121; set.seed(user_seed)
- n <- 80; p <- 500; p0 <- 50; d <- 50; d0 <- 20
+ n <- 80; p <- 5000; p0 <- 50; d <- 50; d0 <- 20
  list_X <- generate_snps(n = n, p = p)
  list_Y <- generate_phenos(n = n, d = d, var_err = 0.8)
 
@@ -12,7 +12,7 @@ user_seed <- 121; set.seed(user_seed)
  #noise <-  matrix(rnorm(n = n*d,mean = 0,sd = 1),ncol=d,nrow=n)
  #Y <- X %*% beta + noise
  b_vb <- matrix(1,ncol=d,nrow=p)
- lambda <- rep(2*10^{-1},d)
+ lambda <- rep(1*10^{-1},d)
  nu <- rep(1*10^{-1},d)
  A <- 10^{-2}
  list_hyper <- list(lambda = lambda, nu = nu, A = A)

@@ -19,6 +19,7 @@ locus_core_horseshoeExp <- function(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma
     converged <- FALSE
     lb_old <- -Inf
     it <- 1
+    ELBO <- c()
 
     while ((!converged) & (it <= maxit)) {
 
@@ -95,7 +96,7 @@ locus_core_horseshoeExp <- function(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma
     lb_new <- lower_bound_horseshoeExp(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                            eta, kappa, lambda, nu, c_vb, b_vb, mat_x_m1, mu_beta_vb,
                            m2_beta, G_vb,  a_inv_vb, scheme)
-
+    ELBO <- c(ELBO, lb_new)
 
       if (verbose & (it == 1 | it %% 5 == 0))
         cat(paste("Lower bound = ", format(lb_new), "\n\n", sep = ""))
@@ -130,7 +131,7 @@ locus_core_horseshoeExp <- function(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma
     if (full_output) { # for internal use only
       create_named_list_(mu_beta_vb, sig2_beta_vb, sig2_inv_vb, tau_vb,c_vb, b_vb, c_vb,
                          eta_vb, kappa_vb, lambda_vb, nu_vb,
-                         lambda, nu, a_inv_vb, A, m2_beta)
+                         lambda, nu, a_inv_vb, A, m2_beta,ELBO)
     } else {
       names_x <- colnames(X)
       names_y <- colnames(Y)
@@ -245,41 +246,29 @@ H_6 <- -p*d + sum(log(G_vb + c_vb))
 
 # do the computation for c
 L_7 <- -(1/2)*sum(log_c_vb) - sum(c_vb) - (p*d)*lgamma(1/2)
-H_7 <- -p*d + sum(log(1 + b_vb))
+H_7 <- sum(-1 + log(1 + b_vb))
 
-print(L_1)
-print(L_2)
-print(L_H_3)
-print(H_4)
-print(H_5)
-print(H_6)
-print(H_7)
+
 
 l <- L_1 + (L_2 - H_2) + L_H_3 + (L_4 - H_4) + (L_5 - H_5) +
      (L_6 - H_6) + (L_7 - H_7)
 
- # lower bound as in the paper
-#  if(scheme == "noPrec") {
-#    l <- (-1)*(n*d/2)* log(2*pi) + p*d/2 + (n/2)*sum(log_tau_vb) - (1/2)*sum(log(sig2_beta_vb)) -
-#       crossprod(tau_vb/2,(nu_vb - nu)) +
-#       +(p*d/2)*log_sig2_inv_vb - (1/2) * sum(b_vb * sig2_inv_vb * m2_beta) +
-#       sum((lambda-lambda_vb) * log_tau_vb + lambda_vb * (1 - (nu/nu_vb)) - lgamma(lambda) + lgamma(lambda_vb) +
-#       lambda*log(nu) - lambda_vb*log(nu_vb)) +
-#       ((1/2)-eta_vb)*log_sig2_inv_vb - a_inv_vb*(sig2_inv_vb + A^{-2}) -2*lgamma(1/2) + (1/2)*log(A^{-2}) +
-#       1 - log(sig2_inv_vb + A^{-2}) + eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) - (p*d*log(pi)) +
-#       sum(log(Q_approx(G_vb))) + p*d - sum(G_vb*Q_approx(G_vb))
-#  } else {
-#    l <- (-1)*(n*d/2)* log(2*pi) + p*d/2 + ((n+p)/2)*sum(log_tau_vb) - (1/2)*sum(log(sig2_beta_vb)) -
-#        crossprod(tau_vb/2,(nu_vb - nu)) +
-#       + (p*d/2)*log_sig2_inv_vb - (1/2) *  sig2_inv_vb * sum(tau_vb * colSums(b_vb * m2_beta)) +
-#       sum((lambda-lambda_vb) * log_tau_vb + lambda_vb * (1 - (nu/nu_vb)) - lgamma(lambda) + lgamma(lambda_vb) +
-#       lambda*log(nu) - lambda_vb*log(nu_vb)) +
-#       ((1/2)-eta_vb)*log_sig2_inv_vb - a_inv_vb*(sig2_inv_vb + A^{-2}) -2*lgamma(1/2) + (1/2)*log(A^{-2}) +
-#       1 - log(sig2_inv_vb + A^{-2}) + eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) - (p*d*log(pi)) +
-#      sum(log(Q_approx(G_vb))) + p*d - sum(G_vb*Q_approx(G_vb))
-#  }
 
-  return(l)
+l2 <- (1/2)*(5*p*d+2) -(n*d/2) * log(2*pi) + ((n+p)/2)*log_tau_vb -
+  sum(tau_vb * (ESS - nu)) + (1/2)*(p*d-2*eta_vb+1)*log_sig2_inv_vb -
+  (1/2) * sig2_inv_vb * sum(tau_vb * colSums(b_vb * m2_beta)) +
+  (1/2)*sum(log(sig2_beta_vb)) +
+  sum((lambda-lambda_vb) * log_tau_vb + lambda_vb * (1 - (nu/nu_vb)) - lgamma(lambda) + lgamma(lambda_vb) +
+        lambda*log(nu) - lambda_vb*log(nu_vb)) -
+  a_inv_vb*(A^{-2}+sig2_inv_vb) - (2+2*p*d)*lgamma(1/2) +
+  eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) -
+   log(A) - log((A^{-2}) + sig2_inv_vb) -
+     sum(c_vb*(b_vb+1))  -
+     sum(log(G_vb + c_vb)) -
+     sum(log(1 + b_vb))
+
+
+  return(l2)
 
 }
 
