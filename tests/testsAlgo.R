@@ -5,7 +5,7 @@ user_seed <- 121; set.seed(user_seed)
 
  dat <- generate_dependence(list_snps = list_X, list_phenos = list_Y,
                             ind_d0 = sample(1:d, d0), ind_p0 = sample(1:p, p0),
-                            vec_prob_sh = 0.5, max_tot_pve = 0.3)
+                            vec_prob_sh = 0.3, max_tot_pve = 0.3)
 
 
  #beta <- matrix(rexp(n = p*d,rate = 1000),ncol=d,nrow=p)
@@ -21,7 +21,7 @@ user_seed <- 121; set.seed(user_seed)
  sig2_beta_vb <- matrix(10^{-5},nrow=p,ncol=d)
  tau_vb <- lambda / nu
  tol <- 1
- maxit <- 120
+ maxit <- 1000
  batch = TRUE
  verbose = TRUE
  full_output = TRUE

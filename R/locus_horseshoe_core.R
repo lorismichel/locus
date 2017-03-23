@@ -19,6 +19,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
     converged <- FALSE
     lb_old <- -Inf
     it <- 1
+    ELBO <- c()
 
     while ((!converged) & (it <= maxit)) {
 
@@ -91,8 +92,8 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
     # % # computation of the lower bound
     lb_new <- lower_bound_horseshoe(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                            eta, kappa, lambda, nu, b_vb, mat_x_m1, mu_beta_vb,
-                           m2_beta, G_vb, a_inv_vb, scheme)
-
+                           m2_beta, G_vb, a_inv_vb, nu_vb, kappa_vb, scheme)
+    ELBO <- c(ELBO, lb_new)
 
       if (verbose & (it == 1 | it %% 5 == 0))
         cat(paste("Lower bound = ", format(lb_new), "\n\n", sep = ""))
@@ -127,7 +128,7 @@ locus_core_horseshoe <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_
     if (full_output) { # for internal use only
       create_named_list_(mu_beta_vb, sig2_beta_vb, sig2_inv_vb, tau_vb, b_vb,
                          eta_vb, kappa_vb, lambda_vb, nu_vb,
-                         lambda, nu, a_inv_vb, A, m2_beta)
+                         lambda, nu, a_inv_vb, A, m2_beta, ELBO)
     } else {
       names_x <- colnames(X)
       names_y <- colnames(Y)
@@ -181,7 +182,7 @@ update_nu_vb_horseshoe <- function(Y_mat, X_mat, mat_x_m1, b_vb, d, n, p, m1_bet
 # this function should be changed adequately
 lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                          eta, kappa, lambda, nu,  b_vb, mat_x_m1, m1_beta,
-                         m2_beta, G_vb, a_inv_vb, scheme) {
+                         m2_beta, G_vb, a_inv_vb, nu_vb, kappa_vb, scheme) {
 
   # update for \tau_{t}
   if(scheme == "noPrec") {
@@ -189,14 +190,14 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
   } else {
     lambda_vb <- lambda + ((n+p)/2)
   }
-  nu_vb <- update_nu_vb_horseshoe(Y, X, mat_x_m1, b_vb, d, n, p, m1_beta,
-                         m2_beta, nu, sig2_inv_vb, scheme)
-  ESS <- update_nu_vb_horseshoe(Y, X, mat_x_m1, b_vb, d, n, p, m1_beta,
-                                  m2_beta, nu, sig2_inv_vb, scheme = "noPrec")
+  #nu_vb <- update_nu_vb_horseshoe(Y, X, mat_x_m1, b_vb, d, n, p, m1_beta,
+  #                       m2_beta, nu, sig2_inv_vb, scheme)
+  # ESS <- update_nu_vb_horseshoe(Y, X, mat_x_m1, b_vb, d, n, p, m1_beta,
+   #                                m2_beta, nu, sig2_inv_vb, scheme = "noPrec")
 
   # updates for \sigma^{-2}
   eta_vb <- (p*d+1)/2
-  kappa_vb <- update_kappa_vb_horseshoe(a_inv_vb, m2_beta, b_vb, tau_vb, scheme)
+  # kappa_vb <- update_kappa_vb_horseshoe(a_inv_vb, m2_beta, b_vb, tau_vb, scheme)
 
   # mean of a^{-1}
   a_inv_vb <- 1 / (sig2_inv_vb + A^{-2})
@@ -208,7 +209,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
   log_a_inv <- digamma(1) - log(A^{-2} + sig2_inv_vb)
   #log_sig2_inv_vb <- digamma(eta_vb) - log(kappa_vb)
 
-  L_1 <- sum(-(n/2) * log(2*pi) + (n/2)*log_tau_vb - tau_vb * (ESS - nu))
+  L_1 <- sum(-(n/2) * log(2*pi) + (n/2)*log_tau_vb - tau_vb * (nu_vb - colSums(m2_beta * b_vb) * sig2_inv_vb / 2 - nu))
 
   if(scheme == "noPrec") {
     L_2 <- -(1/2)*(p*d)*log(2*pi) + (1/2)*(p*d)*log_sig2_inv_vb +
@@ -237,7 +238,22 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
     l <-  L_1 + (L_2 - H_2) + L_H_3 + (L_4 - H_4) + (L_5 - H_5) +
           (L_6 - H_6)
 
-  return(l)
+    l2 <- (p*d+2)/2 - (p*d) * log(pi) -(n/2) * log(2*pi) + ((n+p)/2)*sum(log_tau_vb)
+          - sum(tau_vb * (nu_vb - colSums(m2_beta * b_vb) * sig2_inv_vb / 2 - nu)) +
+          (1/2)*(p*d -2*eta_vb+1)*log_sig2_inv_vb -
+          (1/2) * sig2_inv_vb * sum(tau_vb * colSums(b_vb * m2_beta)) +
+          (1/2)*sum(log(sig2_beta_vb)) +
+          sum((lambda-lambda_vb) * log_tau_vb + lambda_vb * (1 - (nu/nu_vb)) - lgamma(lambda) + lgamma(lambda_vb) +
+           lambda*log(nu) - lambda_vb*log(nu_vb)) -
+           a_inv_vb * (A^{-2}+sig2_inv_vb) - 2*lgamma(1/2)  -
+            eta_vb - lgamma(eta_vb) + eta_vb*log(kappa_vb) -
+            log(A) - log((A^{-2}) + sig2_inv_vb) +
+            + sum(G_vb * b_vb) + sum(log(Q_approx(G_vb)))
+
+
+
+
+  return(l2)
 
 }
 
