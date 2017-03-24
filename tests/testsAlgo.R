@@ -1,5 +1,5 @@
 user_seed <- 121; set.seed(user_seed)
- n <- 80; p <- 5000; p0 <- 50; d <- 50; d0 <- 20
+ n <- 100; p <- 5000; p0 <- 50; d <- 50; d0 <- 20
  list_X <- generate_snps(n = n, p = p)
  list_Y <- generate_phenos(n = n, d = d, var_err = 0.8)
 
@@ -14,14 +14,15 @@ user_seed <- 121; set.seed(user_seed)
  b_vb <- matrix(1,ncol=d,nrow=p)
  lambda <- rep(1*10^{-1},d)
  nu <- rep(1*10^{-1},d)
- A <- 10^{-2}
- list_hyper <- list(lambda = lambda, nu = nu, A = A)
+ A <- 10^{2}
+ B <- rep(10^{2},d)
+ list_hyper <- list(lambda = lambda, nu = nu, A = A, B = B)
  sigma2_vb <- 1000
  mu_beta_vb <- matrix(0,nrow=p,ncol=d)
  sig2_beta_vb <- matrix(10^{-5},nrow=p,ncol=d)
  tau_vb <- lambda / nu
- tol <- 1
- maxit <- 1000
+ tol <- 10^{-4}
+ maxit <- 500
  batch = TRUE
  verbose = TRUE
  full_output = TRUE
@@ -30,7 +31,13 @@ user_seed <- 121; set.seed(user_seed)
  G_vb <- b_vb
  c_vb <- matrix(1/2, nrow=p, ncol=d)
 
- mod <- locus_core_horseshoeExp(Y, X, d, n, p, list_hyper, b_vb, c_vb, sigma2_vb, mu_beta_vb,
+
+ cauchy <- locus_core_horseshoeCauchy(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_beta_vb,
+                                      sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",loop="c++",
+                                      full_output = T)
+
+
+ mod <- locus_core_horseshoeExp(Y, X, d = d, n = n, p = p, list_hyper, b_vb, c_vb, sigma2_vb, mu_beta_vb,
                                      sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "Prec",
                                      loop="c++",full_output = TRUE)
 
@@ -46,12 +53,19 @@ require(ROCR)
 score.HSEXP <- (1 / (n-1 + mod$sig2_inv_vb*mod$b_vb))
 #score.HSEXP <- 1 / mod$b_vb
 score.HS <- (1 / (n-1 + res$sig2_inv_vb*res$b_vb))
+score.HScauchy <- (1 / (n-1 + cauchy$sig2_inv_vb*cauchy$b_vb))
 preds.HSEXP <- prediction(as.numeric(score.HSEXP),as.numeric(dat$beta != 0))
 preds.LOCUS <- prediction(as.numeric(vb_g$gam_vb),as.numeric(dat$beta != 0))
 preds.HS <- prediction(as.numeric(score.HS),as.numeric(dat$beta != 0))
+preds.HScauchy <- prediction(as.numeric(score.HScauchy),as.numeric(dat$beta != 0))
 plot(performance(preds.LOCUS,"tpr","fpr"),col="blue")
 plot(performance(preds.HSEXP ,"tpr","fpr"),col="green",add=T)
 plot(performance(preds.HS ,"tpr","fpr"),col="brown",add=T)
+plot(performance(preds.HScauchy ,"tpr","fpr"),col="pink",add=T)
+legend(x = 0.4,y=0.5,legend = c("LOCUS","HSexp","HS","HScauchy"), # puts text in the legend
+       lty=c(1,1), # gives the legend appropriate symbols (lines)
+       lwd=c(2,2),col=c("blue","green","brown","pink")) # gives the legend lines the correct color and width
+
 
 
 score <- 1 / (1 + mod$b_vb)

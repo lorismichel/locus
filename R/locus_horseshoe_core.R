@@ -200,7 +200,7 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
   # kappa_vb <- update_kappa_vb_horseshoe(a_inv_vb, m2_beta, b_vb, tau_vb, scheme)
 
   # mean of a^{-1}
-  a_inv_vb <- 1 / (sig2_inv_vb + A^{-2})
+  # a_inv_vb <- 1 / (sig2_inv_vb + A^{-2})
 
   # log values for |tau_{t} and |sig^{-2}
 
@@ -238,18 +238,32 @@ lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_
     l <-  L_1 + (L_2 - H_2) + L_H_3 + (L_4 - H_4) + (L_5 - H_5) +
           (L_6 - H_6)
 
-    l2 <- (p*d+2)/2 - (p*d) * log(pi) -(n/2) * log(2*pi) + ((n+p)/2)*sum(log_tau_vb)
-          - sum(tau_vb * (nu_vb - colSums(m2_beta * b_vb) * sig2_inv_vb / 2 - nu)) +
-          (1/2)*(p*d -2*eta_vb+1)*log_sig2_inv_vb -
-          (1/2) * sig2_inv_vb * sum(tau_vb * colSums(b_vb * m2_beta)) +
-          (1/2)*sum(log(sig2_beta_vb)) +
-          sum((lambda-lambda_vb) * log_tau_vb + lambda_vb * (1 - (nu/nu_vb)) - lgamma(lambda) + lgamma(lambda_vb) +
-           lambda*log(nu) - lambda_vb*log(nu_vb)) -
-           a_inv_vb * (A^{-2}+sig2_inv_vb) - 2*lgamma(1/2)  -
-            eta_vb - lgamma(eta_vb) + eta_vb*log(kappa_vb) -
-            log(A) - log((A^{-2}) + sig2_inv_vb) +
-            + sum(G_vb * b_vb) + sum(log(Q_approx(G_vb)))
+    if(scheme == "noPrec") {
+      l2 <- (p*d+2)/2 - (p*d) * log(pi) -(n/2) * log(2*pi) + (n/2)*sum(log_tau_vb)
+      - sum(tau_vb * (nu_vb  - nu)) +
+        (1/2)*(p*d -2*eta_vb+1)*log_sig2_inv_vb -
+        (1/2) * sig2_inv_vb * sum(tau_vb * colSums(b_vb * m2_beta)) +
+        (1/2)*sum(log(sig2_beta_vb)) +
+        sum((lambda-lambda_vb) * log_tau_vb + tau_vb * (nu - nu_vb) - lgamma(lambda) + lgamma(lambda_vb) +
+              lambda*log(nu) - lambda_vb*log(nu_vb)) -
+        a_inv_vb * (A^{-2}+sig2_inv_vb) - 2*lgamma(1/2) +
+        eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) -
+        log(A) - log((A^{-2}) + sig2_inv_vb) +
+        + sum(G_vb * b_vb) + sum(log(Q_approx(G_vb)))
+    } else {
+      l2 <- (p*d+2)/2 - (p*d) * log(pi) -(n/2) * log(2*pi) + ((n+p)/2)*sum(log_tau_vb)
+      - sum(tau_vb * (nu_vb - colSums(m2_beta * b_vb) * sig2_inv_vb / 2 - nu)) +
+        (1/2)*(p*d -2*eta_vb+1)*log_sig2_inv_vb -
+        (1/2) * sig2_inv_vb * sum(tau_vb * colSums(b_vb * m2_beta)) +
+        (1/2)*sum(log(sig2_beta_vb)) +
+        sum((lambda-lambda_vb) * log_tau_vb + tau_vb * (nu - nu_vb) - lgamma(lambda) + lgamma(lambda_vb) +
+              lambda*log(nu) - lambda_vb*log(nu_vb)) -
+        a_inv_vb * (A^{-2}+sig2_inv_vb) - 2*lgamma(1/2) +
+        eta_vb + lgamma(eta_vb) - eta_vb*log(kappa_vb) -
+        log(A) - log(A^{-2} + sig2_inv_vb) +
+        + sum(G_vb * b_vb) + sum(log(Q_approx(G_vb)))
 
+    }
 
 
 
