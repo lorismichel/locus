@@ -3,8 +3,8 @@
 #' @export
 #'
 locus_core_horseshoeCauchy <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_bv, mu_beta_vb,
-                                 sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",loop="c++",
-                                 full_output = FALSE) {
+                                       sig2_beta_vb, tau_vb, tol, maxit, batch, verbose, scheme = "noPrec",loop="c++",
+                                       full_output = FALSE) {
 
   # Y must have been centered, and X, standardized.
 
@@ -32,7 +32,7 @@ locus_core_horseshoeCauchy <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_b
       # % # update of sigma^{-2}
       eta_vb      <- (p*d+1) / 2
       kappa_vb    <- update_kappa_vb_horseshoeCauchy(a_inv_vb, m2_beta, b_vb,
-                                               tau_vb, scheme)
+                                                     tau_vb, scheme)
       sig2_inv_vb <- eta_vb / kappa_vb
 
       # % # update of a^{-1}
@@ -49,8 +49,8 @@ locus_core_horseshoeCauchy <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_b
 
 
       nu_vb <- update_nu_vb_horseshoeCauchy(Y, X,  mat_x_m1, b_vb, d, n,
-                                      p, mu_beta_vb, m2_beta, nu,
-                                      sig2_inv_vb, d_inv_vb, scheme)
+                                            p, mu_beta_vb, m2_beta, nu,
+                                            sig2_inv_vb, d_inv_vb, scheme)
 
       tau_vb <- lambda_vb / nu_vb
 
@@ -85,7 +85,7 @@ locus_core_horseshoeCauchy <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_b
         if(scheme == "noPrec") {
           G_vb <- (1/2) * sig2_inv_vb * m2_beta
         } else {
-          G_vb <- (1/2) * sig2_inv_vb * tau_vb * m2_beta
+          G_vb <- (1/2) * sig2_inv_vb * sweep(m2_beta,2,tau_vb,`*`)
         }
 
         # % # update of the b values
@@ -99,8 +99,8 @@ locus_core_horseshoeCauchy <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_b
 
       # % # computation of the lower bound
       lb_new <- lower_bound_horseshoeCauchy(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
-                                      eta, kappa, lambda, nu, b_vb, mat_x_m1, mu_beta_vb,
-                                      m2_beta, G_vb, a_inv_vb, nu_vb, kappa_vb, d_inv_vb, scheme)
+                                            eta, kappa, lambda, nu, b_vb, mat_x_m1, mu_beta_vb,
+                                            m2_beta, G_vb, a_inv_vb, nu_vb, kappa_vb, d_inv_vb, scheme)
       ELBO <- c(ELBO, lb_new)
 
       if (verbose & (it == 1 | it %% 5 == 0))
@@ -143,8 +143,8 @@ locus_core_horseshoeCauchy <- function(Y, X, d, n, p, list_hyper, b_vb, sigma2_b
 
       rownames(mu_beta_vb) <- names_x
       colnames(mu_beta_vb) <- names_y
-     # rownames(b_vb) <- names_x
-     # colnames(b_vb) <- name_y
+      # rownames(b_vb) <- names_x
+      # colnames(b_vb) <- name_y
       #names(x_prpnst) <- names_x
       #names(y_prpnst) <- names_y
 
@@ -167,20 +167,20 @@ update_kappa_vb_horseshoeCauchy <- function(a_inv, m2_beta, b_vb, tau_vb, scheme
 }
 
 update_nu_vb_horseshoeCauchy <- function(Y_mat, X_mat, mat_x_m1, b_vb, d, n, p, m1_beta,
-                                   m2_beta, nu, sig2_inv_vb, d_inv_vb, scheme) {
+                                         m2_beta, nu, sig2_inv_vb, d_inv_vb, scheme) {
   # put X_mat and Y_mat instead of X and Y to avoid conflicts with the function sapply,
   # which has also an "X" argument with different meaning...
 
   # X must be standardized as we use (X \hadamard X)^T \one_n = (n-1)\one_p
   if(scheme == "noPrec") {
     nu_vb <- d_inv_vb + (colSums(Y_mat ^ 2) - 2*colSums(Y_mat * (mat_x_m1)) +
-                     +  colSums((n-1) * m2_beta) +
-                     +  colSums(mat_x_m1^2) - (n - 1) * colSums(m1_beta^2))/ 2
+                           +  colSums((n-1) * m2_beta) +
+                           +  colSums(mat_x_m1^2) - (n - 1) * colSums(m1_beta^2))/ 2
   } else {
 
     nu_vb <- d_inv_vb + (colSums(Y_mat ^ 2) - 2*colSums(Y_mat * (mat_x_m1)) +
-                     +  colSums(((n-1) + sig2_inv_vb * b_vb) * m2_beta) +
-                     +  colSums(mat_x_m1^2) - (n - 1) * colSums(m1_beta^2))/ 2
+                           +  colSums(((n-1) + sig2_inv_vb * b_vb) * m2_beta) +
+                           +  colSums(mat_x_m1^2) - (n - 1) * colSums(m1_beta^2))/ 2
 
   }
 
@@ -190,8 +190,8 @@ update_nu_vb_horseshoeCauchy <- function(Y_mat, X_mat, mat_x_m1, b_vb, d, n, p, 
 
 # this function should be changed adequately
 lower_bound_horseshoeCauchy <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
-                                  eta, kappa, lambda, nu,  b_vb, mat_x_m1, m1_beta,
-                                  m2_beta, G_vb, a_inv_vb, nu_vb, kappa_vb, d_inv_vb, scheme) {
+                                        eta, kappa, lambda, nu,  b_vb, mat_x_m1, m1_beta,
+                                        m2_beta, G_vb, a_inv_vb, nu_vb, kappa_vb, d_inv_vb, scheme) {
 
   # update for \tau_{t}
   if(scheme == "noPrec") {
@@ -216,7 +216,7 @@ lower_bound_horseshoeCauchy <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb
   log_tau_vb <- digamma(lambda_vb) - log(nu_vb)
   log_sig2_inv_vb <- digamma(eta_vb) - log(kappa_vb)
   log_a_inv <- digamma(1) - log(A^{-2} + sig2_inv_vb)
-  log_d_vb <- log(1) - log(B^{-2} + tau_vb)
+  log_d_vb <- digamma(1) - log(B^{-2} + tau_vb)
   #log_sig2_inv_vb <- digamma(eta_vb) - log(kappa_vb)
 
   L_1 <- sum(-(n/2) * log(2*pi) + (n/2)*log_tau_vb - tau_vb * (nu_vb - colSums(m2_beta * b_vb) * sig2_inv_vb / 2 - nu))
@@ -289,4 +289,3 @@ lower_bound_horseshoeCauchy <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb
   return(l2)
 
 }
-
