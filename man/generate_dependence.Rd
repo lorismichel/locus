@@ -117,4 +117,3 @@ dat_b <- generate_dependence(list_snps, list_phenos, ind_d0 = sample(1:d, d0),
 \code{\link{generate_snps}}, \code{\link{replicate_real_snps}},
   \code{\link{generate_phenos}}, \code{\link{replicate_real_phenos}}
 }
-

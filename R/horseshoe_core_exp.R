@@ -29,7 +29,7 @@ horseshoe_core_exp <- function(Y, X, d, n, p, list_hyper, alpha_vb, c_vb, mu_bet
 
       # % # update of sigma^{-2}
       lambda_vb <- (p*d+1)/2
-      nu_vb <- update_nu_vb_horseshoe_exp(b_inv_vb, m2_beta, alpha_vb, tau_vb, scheme)
+      nu_vb <- update_nu_vb_horseshoe_exp(b_inv_vb, m2_beta, alpha_vb, tau_vb, shared_prec)
       sig2_inv_vb <- lambda_vb / nu_vb
 
       # % # update of a^{-1}
@@ -44,13 +44,13 @@ horseshoe_core_exp <- function(Y, X, d, n, p, list_hyper, alpha_vb, c_vb, mu_bet
 
       kappa_vb <- update_kappa_vb_horseshoe_exp(Y, X,  mat_x_m1, alpha_vb,
                                                 d, n, p, mu_beta_vb, m2_beta,
-                                                sig2_inv_vb, a_inv_vb, scheme)
+                                                sig2_inv_vb, a_inv_vb, shared_prec)
       tau_vb <- eta_vb / kappa_vb
 
       a_inv_vb <- 1/(A^{-2}+tau_vb)
 
       # % # update of the variance of the \beta's (inefficient replication of the tau value)
-      if(scheme == "noPrec") {
+      if(!shared_prec) {
         sig2_beta_vb <- 1 / sweep(sig2_inv_vb * alpha_vb, 2, (n-1)*tau_vb,`+`)
       } else {
         sig2_beta_vb <- 1 / sweep((n-1) + (sig2_inv_vb * alpha_vb), 2, tau_vb,`*`)
@@ -59,7 +59,7 @@ horseshoe_core_exp <- function(Y, X, d, n, p, list_hyper, alpha_vb, c_vb, mu_bet
       coreHorseShoeLoop(X, Y, mat_x_m1, mu_beta_vb, mu_beta_vb, sig2_beta_vb, tau_vb)
 
       # % # update of the G values
-      if(scheme == "noPrec") {
+      if(!shared_prec) {
         G_vb <- (1/2)* sig2_inv_vb * m2_beta
       } else {
         G_vb <- (1/2)* sig2_inv_vb * sweep(m2_beta, 2, tau_vb, `*`)
@@ -142,7 +142,7 @@ update_kappa_vb_horseshoe_exp <- function(Y_mat, X_mat, mat_x_m1, alpha_vb, d, n
   # which has also an "X" argument with different meaning...
 
   # X must be standardized as we use (X \hadamard X)^T \one_n = (n-1)\one_p
-  if(scheme == "noPrec") {
+  if(!shared_prec) {
     kappa_vb <- a_inv_vb + (colSums(Y_mat ^ 2) - 2*colSums(Y_mat * (mat_x_m1)) +
                      +  colSums((n-1) * m2_beta) +
                      +  colSums(mat_x_m1^2) - (n - 1) * colSums(m1_beta^2))/ 2

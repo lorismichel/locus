@@ -64,4 +64,3 @@ list_phenos <- replicate_real_phenos(n, list_fake_real_phenos$phenos,
 \code{\link{generate_snps}}, \code{\link{replicate_real_snps}},
   \code{\link{generate_phenos}}, \code{\link{generate_dependence}}
 }
-
