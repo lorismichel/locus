@@ -156,9 +156,15 @@ lower_bound_horseshoe_exp_gamma <- function(Y, X, d, n, p, sig2_beta_vb, sig2_in
   } else {
     eta_vb <- 1/2 + ((n+p)/2)
   }
-
+  #kappa_vb <- update_kappa_vb_horseshoe_exp_gamma(Y, X, mat_x_m1, alpha_vb, d, n, p, mu_beta_vb,
+  #                                                m2_beta, sig2_inv_vb, kappa, shared_prec)
   # updates for \sigma^{-2}
   lambda_vb <- (p*d+1)/2
+  #nu_vb <- update_nu_vb_horseshoe_exp_gamma(m2_beta, alpha_vb, tau_vb, nu, shared_prec)
+
+
+
+
 
   log_tau_vb <- digamma(eta_vb) - log(kappa_vb)
   log_sig2_inv_vb <- digamma(lambda_vb) - log(nu_vb)
@@ -176,15 +182,16 @@ lower_bound_horseshoe_exp_gamma <- function(Y, X, d, n, p, sig2_beta_vb, sig2_in
     L_2 <- -(1/2)*(p*d)*log(2*pi) + (1/2)*(p*d)*log_sig2_inv_vb  -
       (1/2) * sig2_inv_vb * sum(alpha_vb * m2_beta)
   } else {
-    L_2 <- -(1/2)*(p*d)*log(2*pi) + (1/2)*(p*d)*log_sig2_inv_vb  -
+    L_2 <- -(1/2)*(p*d)*log(2*pi) + (1/2)*(p*d)*log_sig2_inv_vb +
+             (1/2)*p*sum(log_tau_vb) -
       (1/2) * sig2_inv_vb * sum(tau_vb * colSums(alpha_vb * m2_beta))
   }
 
-  H_2 <-  (1/2)*(-sum(log(sig2_beta_vb)) - p*d*(log(2*pi)+1))
+  H_2 <-  -(1/2)*sum(log(sig2_beta_vb) + (log(2*pi)+1))
 
 
-  L_H_3 <- sum((eta-eta_vb) * log_tau_vb) + sum(tau_vb * (kappa_vb - kappa)) - d*lgamma(eta) + d*lgamma(eta_vb) +
-                 sum(eta*log(kappa)) - sum(eta_vb*log(kappa_vb))
+  L_H_3 <- sum((eta-eta_vb) * log_tau_vb + tau_vb * (kappa_vb - kappa) - lgamma(eta) + lgamma(eta_vb) +
+                 eta*log(kappa) - eta_vb*log(kappa_vb))
 
   L_H_4 <- (lambda-lambda_vb) * log_sig2_inv_vb + sig2_inv_vb * (nu_vb - nu) - lgamma(lambda) + lgamma(lambda_vb) +
             lambda*log(nu) - lambda_vb*log(nu_vb)

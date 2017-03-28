@@ -1,5 +1,5 @@
 user_seed <- 121; set.seed(user_seed)
- n <- 80; p <- 1000; p0 <- 90; d <- 40; d0 <- 10
+ n <- 50; p <- 500; p0 <- 20; d <- 10; d0 <- 5
  list_X <- generate_snps(n = n, p = p)
  list_Y <- generate_phenos(n = n, d = d, var_err = 4)
 
@@ -24,7 +24,7 @@ user_seed <- 121; set.seed(user_seed)
  mu_beta_vb <- matrix(0,nrow=p,ncol=d)
  sig2_beta_vb <- matrix(1/(n-1 + typical_size^{-2}),nrow=p,ncol=d)
 sigma2_vb <- typical_size^{2}
- tol <- 10^{-1}
+ tol <- 10^{-5}
  maxit <- 200
  batch = TRUE
  verbose = TRUE
@@ -42,13 +42,14 @@ sigma2_vb <- typical_size^{2}
                                  full_output = T)
 
 G_vb <- (1/2)*sweep(sig2_beta_vb,2,1/list_hyper$kappa,`*`)
-ga <-  horseshoe_core_gamma(Y, X, d, n, p, list_hyper = list_hyper, b_vb,  mu_beta_vb,
+ga <-  horseshoe_core_gamma(Y, X, d, n, p, list_hyper = list_hyper, alpha_vb,  mu_beta_vb,
                                        sig2_beta_vb, tau_vb, tol, maxit, verbose, shared_prec =  F,
                                        full_output = TRUE)
 
+
 G_vb <- matrix(1,ncol=d,nrow=p)
 HS <- horseshoe_core(Y, X, d, n, p, list_hyper, alpha_vb, mu_beta_vb,
-                                 sig2_beta_vb, tau_vb, tol, maxit, verbose, shared_prec = F,
+                                 sig2_beta_vb, tau_vb, tol, maxit, verbose, ,
                                  full_output = TRUE)
 
 
@@ -80,7 +81,7 @@ plot(exp_ga$ELBO,type="l")
 plot(ga$ELBO,type="l")
 plot(HS$ELBO,type="l")
 plot(ExpCauchy$ELBO,type="l")
-plot(HSplus $ELBO,type="l")
+plot(HSplus$ELBO,type="l")
 # roc curves
 require(ROCR)
 #score.HSEXP <- (1 / (n-1 + mod$sig2_inv_vb*mod$))
