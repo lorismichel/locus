@@ -1,12 +1,12 @@
 user_seed <- 121; set.seed(user_seed)
- n <- 50; p <- 500; p0 <- 20; d <- 10; d0 <- 5
+ n <- 500; p <- 1000; p0 <- 20; d <- 10; d0 <- 5
  list_X <- generate_snps(n = n, p = p)
- list_Y <- generate_phenos(n = n, d = d, var_err = 4)
+ list_Y <- generate_phenos(n = n, d = d, var_err = 1)
 
- vec_prob_sh <- 0.2
+ vec_prob_sh <- 0.1
  dat <- generate_dependence(list_snps = list_X, list_phenos = list_Y,
                             ind_d0 = sample(1:d, d0), ind_p0 = sample(1:p, p0),
-                            vec_prob_sh =  vec_prob_sh, max_tot_pve = 0.3)
+                            vec_prob_sh =  vec_prob_sh, max_tot_pve = 0.1)
 
 
 
@@ -24,7 +24,7 @@ user_seed <- 121; set.seed(user_seed)
  mu_beta_vb <- matrix(0,nrow=p,ncol=d)
  sig2_beta_vb <- matrix(1/(n-1 + typical_size^{-2}),nrow=p,ncol=d)
 sigma2_vb <- typical_size^{2}
- tol <- 10^{-5}
+ tol <- 1
  maxit <- 200
  batch = TRUE
  verbose = TRUE
@@ -49,7 +49,7 @@ ga <-  horseshoe_core_gamma(Y, X, d, n, p, list_hyper = list_hyper, alpha_vb,  m
 
 G_vb <- matrix(1,ncol=d,nrow=p)
 HS <- horseshoe_core(Y, X, d, n, p, list_hyper, alpha_vb, mu_beta_vb,
-                                 sig2_beta_vb, tau_vb, tol, maxit, verbose, ,
+                                 sig2_beta_vb, tau_vb, tol, maxit, verbose, shared_prec = F,
                                  full_output = TRUE)
 
 
@@ -82,14 +82,9 @@ plot(ga$ELBO,type="l")
 plot(HS$ELBO,type="l")
 plot(ExpCauchy$ELBO,type="l")
 plot(HSplus$ELBO,type="l")
-# roc curves
+ # roc curves
 require(ROCR)
 #score.HSEXP <- (1 / (n-1 + mod$sig2_inv_vb*mod$))
-score.ga <- (1 / (1 + ga$sig2_inv_vb*ga$alpha_vb))
-score.exp_ga <- (1 / (1 + exp_ga$sig2_inv_vb*exp_ga$alpha_vb))
-score.HScauchy <- (1 / (1 + HS$sig2_inv_vb*HS$alpha_vb))
-score.HSEXPcauchy <- (1 / (1 + ExpCauchy$sig2_inv_vb*ExpCauchy$alpha_vb))
-score.HSplus <- (1 / (1 + HSplus$sig2_inv_vb*HSplus$alpha_vb))
 
 
 preds.LOCUS <- prediction(as.numeric(vb_g$gam_vb),as.numeric(dat$beta != 0))
@@ -99,7 +94,9 @@ preds.ga <- prediction(as.numeric(score.ga),as.numeric(dat$beta != 0))
 preds.exp_ga <- prediction(as.numeric(score.exp_ga),as.numeric(dat$beta != 0))
 preds.HSplus <- prediction(as.numeric(score.HSplus),as.numeric(dat$beta != 0))
 
-plot(performance(preds.LOCUS,"tpr","fpr"),col="blue")
+performance(preds.exp_ga, "auc")
+
+plot(performance(preds.LOCUS,"tpr","fpr"),col="blue",avg = T,spread.estimate=T)
 plot(performance(preds.HScauchy ,"tpr","fpr"),col="pink",add=T)
 plot(performance(preds.HSEXPcauchy ,"tpr","fpr"),col="black",add=T)
 plot(performance(preds.ga ,"tpr","fpr"),col="orange",add=T)

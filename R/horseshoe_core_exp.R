@@ -74,7 +74,7 @@ horseshoe_core_exp <- function(Y, X, d, n, p, list_hyper, alpha_vb, c_vb, mu_bet
       # % # computation of the lower bound
       lb_new <- lower_bound_horseshoe_exp(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                                          c_vb, alpha_vb, mat_x_m1, mu_beta_vb,
-                                         m2_beta, G_vb, nu_vb, kappa_vb, a_inv_vb, b_inv_vb, shared_prec)
+                                         m2_beta, G_vb, nu_vb, kappa_vb, a_inv_vb, b_inv_vb, A, B, shared_prec)
       ELBO <- c(ELBO, lb_new)
 
       if(verbose & (it == 1 | (it %% 5) == 0)){
@@ -160,7 +160,7 @@ update_kappa_vb_horseshoe_exp <- function(Y_mat, X_mat, mat_x_m1, alpha_vb, d, n
 # this function should be changed adequately
 lower_bound_horseshoe_exp <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                                       c_vb,  alpha_vb, mat_x_m1, m1_beta,
-                                      m2_beta, G_vb, nu_vb, kappa_vb, a_inv_vb, b_inv_vb, shared_prec) {
+                                      m2_beta, G_vb, nu_vb, kappa_vb, a_inv_vb, b_inv_vb, A, B, shared_prec) {
 
   # update for \tau_{t}
   if(!shared_prec) {

@@ -86,7 +86,7 @@ horseshoe_core <- function(Y, X, d, n, p, list_hyper, alpha_vb, mu_beta_vb,
       lb_new <- lower_bound_horseshoe(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                                       eta, kappa, lambda, nu, alpha_vb, mat_x_m1, mu_beta_vb,
                                       m2_beta, G_vb, eta_vb, kappa_vb, lambda_vb, nu_vb, a_inv_vb,
-                                      b_inv_vb, shared_prec)
+                                      b_inv_vb, A, B, shared_prec)
 
       ELBO <- c(ELBO, lb_new)
 
@@ -177,7 +177,7 @@ update_kappa_vb_horseshoe <- function(Y_mat, X_mat, mat_x_m1, alpha_vb, d, n, p,
 lower_bound_horseshoe <- function(Y, X, d, n, p, sig2_beta_vb, sig2_inv_vb, tau_vb,
                                   eta, kappa, lambda, nu,  alpha_vb, mat_x_m1, m1_beta,
                                   m2_beta, G_vb, eta_vb, kappa_vb, lambda_vb, nu_vb, a_inv_vb, b_inv_vb,
-                                  shared_prec) {
+                                  A, B, shared_prec) {
 
 
   log_tau_vb <- digamma(eta_vb) - log(kappa_vb)
