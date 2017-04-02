@@ -1,7 +1,7 @@
 # Loris Michel, EPFL
 # this is a first script to validate on a small sample both the fact that
 # the ELBO is increasing, converging and that the results make sense
-# with the horseshow
+# with the horseshoe
 library(scales)
 cols <- cut(z, 6, labels = c("pink", "red", "yellow", "blue", "green", "purple"))
 plot(c(1,2), c(1,2), main= "Fragment recruitment plot - FR-HIT",
