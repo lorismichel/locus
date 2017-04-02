@@ -1,5 +1,4 @@
 require(gsl)
-
 Q_approx <- function(x, eps1 = 10^{-30},eps2 = 10^{-7}) {
 
   if(x <= 1) {

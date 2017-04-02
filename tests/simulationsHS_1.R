@@ -1,4 +1,7 @@
 # Loris Michel, EPFL
+# this is a first script to validate on a small sample both the fact that
+# the ELBO is increasing, converging and that the results make sense
+# with the horseshow
 library(scales)
 cols <- cut(z, 6, labels = c("pink", "red", "yellow", "blue", "green", "purple"))
 plot(c(1,2), c(1,2), main= "Fragment recruitment plot - FR-HIT",
@@ -37,7 +40,7 @@ score.HS_plus <- list()
 score.loc <- list()
 labels <- list()
 
-for (i in 1:3) {
+for (i in 1:10) {
 # generate the data
 list_X <- generate_snps(n = n, p = p,user_seed = NULL)
 vec_rho <- runif(d, min = 0.25, max = 0.95)
