@@ -3,10 +3,7 @@
 # the ELBO is increasing, converging and that the results make sense
 # with the horseshoe
 library(scales)
-cols <- cut(z, 6, labels = c("pink", "red", "yellow", "blue", "green", "purple"))
-plot(c(1,2), c(1,2), main= "Fragment recruitment plot - FR-HIT",
-     ylab = "Percent identity", xlab = "Base pair position",
-     col = alpha("purple", 0.4), pch=16)
+library(locus)
 # first simu for assessing performances of HS vs locus
 median.impute <- function(mat) {
   for(i in 1:ncol(mat)) {
@@ -30,7 +27,7 @@ require(reshape2)
 user_seed <- 121
 set.seed(user_seed)
 # define the dimensions of the problems
-n <- 50; p <- 1000; p0 <- 100; d <- 30; d0 <- 15
+n <- 50; p <- 5000; p0 <- 100; d <- 50; d0 <- 15
 
 score.HS_ga <- list()
 score.HS_exp_ga <- list()
@@ -64,8 +61,8 @@ typical_size <- 0.2
 mu_beta_vb <- matrix(0,nrow=ncol(X),ncol=d)
 sig2_beta_vb <- matrix(1/(n-1 + typical_size^{-2}),nrow=ncol(X),ncol=d)
 sigma2_vb <- typical_size^{2}
-tol <- 1
-maxit <- 300
+tol <- 10
+maxit <- 200
 batch = TRUE
 verbose = TRUE
 full_output = TRUE
