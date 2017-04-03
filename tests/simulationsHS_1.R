@@ -2,8 +2,8 @@
 # this is a first script to validate on a small sample both the fact that
 # the ELBO is increasing, converging and that the results make sense
 # with the horseshoe
-
 require(locus)
+require(gsl)
 require(scales)
 require(reshape2)
 
@@ -32,7 +32,7 @@ score.loc <- list()
 
 labels <- list()
 
-for (i in 1:2) {
+for (i in 1:100) {
 
 list_X <- generate_snps(n = n, p = p,
                         cor_type = "equicorrelated",
@@ -219,7 +219,7 @@ if(i==1) {
   replayPlot(pl.HS_exp_ga)
   plot(local.perf.HS_exp_ga,lty=1,lwd=1,add=T,col=alpha("brown", 0.4))
   pl.HS_exp_ga <- recordPlot()
-  replay(pl.HS_exp_ga_prec)
+  replayPlot(pl.HS_exp_ga_prec)
   plot(local.perf.HS_exp_ga_prec,lty=1,lwd=1,add=T,col=alpha("brown", 0.4))
   pl.HS_exp_ga_prec <- recordPlot()
   replayPlot(pl.HS)
@@ -246,6 +246,8 @@ if(i==1) {
 }
 #skip.streams(3)
 }
+
+
 
 score.HS_ga <- Filter(Negate(function(x) is.null(unlist(x))), score.HS_ga)
 score.HS_ga_prec <- Filter(Negate(function(x) is.null(unlist(x))), score.HS_ga_prec)
